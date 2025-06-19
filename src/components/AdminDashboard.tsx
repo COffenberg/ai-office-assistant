@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,12 +6,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3 } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3, Brain, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useQAPairs } from "@/hooks/useQAPairs";
+import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
 import AdminAnalytics from "./AdminAnalytics";
+import KnowledgeGapManager from "./KnowledgeGapManager";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -30,6 +31,8 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     isUploading,
     isDeleting 
   } = useDocuments();
+
+  const { processDocument, processingStatus } = useDocumentProcessing();
 
   const {
     qaPairs,
@@ -68,6 +71,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     }
     // Reset input
     event.target.value = '';
+  };
+
+  const handleProcessDocument = (documentId: string) => {
+    processDocument(documentId);
   };
 
   const handleAddQAPair = () => {
@@ -144,7 +151,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs defaultValue="documents" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="documents" className="flex items-center space-x-2">
               <FileText className="w-4 h-4" />
               <span>Documents</span>
@@ -156,6 +163,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
             <TabsTrigger value="analytics" className="flex items-center space-x-2">
               <BarChart3 className="w-4 h-4" />
               <span>Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="gaps" className="flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Knowledge Gaps</span>
             </TabsTrigger>
           </TabsList>
 
@@ -213,12 +224,12 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
               </CardContent>
             </Card>
 
-            {/* Documents List */}
+            {/* Enhanced Documents List */}
             <Card>
               <CardHeader>
                 <CardTitle>Uploaded Documents ({documents.length})</CardTitle>
                 <CardDescription>
-                  Manage your uploaded knowledge base documents
+                  Manage your uploaded knowledge base documents with AI processing
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -238,17 +249,42 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                             <h4 className="font-medium text-gray-900 truncate">{doc.name}</h4>
                             <div className="flex items-center space-x-4 text-sm text-gray-500">
                               <Badge variant="secondary">{doc.file_type}</Badge>
-                              <span>{formatFileSize(doc.file_size)}</span>
-                              <span>Uploaded: {formatDate(doc.upload_date)}</span>
+                              <span>{((doc.file_size) / 1024).toFixed(1)} KB</span>
+                              <span>Uploaded: {new Date(doc.upload_date).toLocaleDateString()}</span>
                               <Badge 
-                                variant={doc.processing_status === 'uploaded' ? 'outline' : 'default'}
+                                variant={doc.processing_status === 'processed' ? 'default' : 
+                                       doc.processing_status === 'processing' ? 'secondary' : 
+                                       doc.processing_status === 'error' ? 'destructive' : 'outline'}
                               >
                                 {doc.processing_status}
                               </Badge>
+                              {doc.ai_summary && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Brain className="w-3 h-3 mr-1" />
+                                  AI Enhanced
+                                </Badge>
+                              )}
                             </div>
+                            {doc.ai_summary && (
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                {doc.ai_summary}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
+                          {doc.processing_status === 'uploaded' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleProcessDocument(doc.id)}
+                              disabled={processingStatus[doc.id] === 'processing'}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Brain className="w-4 h-4 mr-1" />
+                              {processingStatus[doc.id] === 'processing' ? 'Processing...' : 'Process'}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -377,6 +413,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
           <TabsContent value="analytics" className="space-y-6">
             <AdminAnalytics />
+          </TabsContent>
+
+          <TabsContent value="gaps" className="space-y-6">
+            <KnowledgeGapManager />
           </TabsContent>
         </Tabs>
       </div>

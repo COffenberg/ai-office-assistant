@@ -2,6 +2,7 @@
 import { useQAPairs } from './useQAPairs';
 import { useDocuments } from './useDocuments';
 import { useSearchAnalytics } from './useSearchAnalytics';
+import { useAISynthesis } from './useAISynthesis';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SearchResult {
@@ -21,23 +22,26 @@ export interface EnhancedSearchResult {
   content: string;
   source: string;
   relevance_score: number;
+  context_match?: number;
 }
 
 export const useKnowledgeBase = () => {
   const { qaPairs, searchQAPairs } = useQAPairs();
   const { documents } = useDocuments();
   const { trackSearch } = useSearchAnalytics();
+  const { generateAIAnswer } = useAISynthesis();
 
-  const searchKnowledgeBase = async (query: string): Promise<SearchResult[]> => {
+  const searchKnowledgeBase = async (query: string, userContext?: any): Promise<SearchResult[]> => {
     try {
-      // Use the enhanced search function from the database
-      const { data: results, error } = await supabase.rpc('enhanced_search', {
+      // Use the enhanced AI search function from the database
+      const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
         search_query: query,
+        user_context: userContext || {},
         limit_results: 20
       });
 
       if (error) {
-        console.error('Enhanced search error:', error);
+        console.error('AI enhanced search error:', error);
         // Fallback to basic search
         return await basicSearch(query);
       }
@@ -55,7 +59,7 @@ export const useKnowledgeBase = () => {
         question: result.result_type === 'qa_pair' ? result.title : undefined,
         answer: result.content,
         source: result.source,
-        relevanceScore: result.relevance_score,
+        relevanceScore: result.relevance_score + (result.context_match || 0),
       })) || [];
 
       return searchResults;
@@ -82,12 +86,16 @@ export const useKnowledgeBase = () => {
     return qaSearchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
   };
 
-  const generateAnswer = async (question: string): Promise<{
+  const generateAnswer = async (
+    question: string,
+    conversationHistory: any[] = []
+  ): Promise<{
     answer: string;
     source?: string;
     sourceType?: 'qa_pair' | 'document' | 'ai_generated';
     sourceId?: string;
     searchResults?: SearchResult[];
+    aiGenerated?: boolean;
   }> => {
     // Search for relevant content
     const results = await searchKnowledgeBase(question);
@@ -95,8 +103,8 @@ export const useKnowledgeBase = () => {
     if (results.length > 0) {
       const bestMatch = results[0];
       
-      // If we have a high-confidence match, use it
-      if (bestMatch.relevanceScore > 0.7) {
+      // If we have a high-confidence match, use it directly
+      if (bestMatch.relevanceScore > 0.8) {
         // Increment usage count for Q&A pairs
         if (bestMatch.type === 'qa_pair') {
           await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
@@ -107,23 +115,37 @@ export const useKnowledgeBase = () => {
           source: bestMatch.source,
           sourceType: bestMatch.type,
           sourceId: bestMatch.id,
-          searchResults: results.slice(0, 3), // Include top 3 results for context
+          searchResults: results.slice(0, 3),
         };
       }
       
-      // If we have moderate matches, provide a synthesized answer
+      // If we have moderate matches, try AI synthesis
       if (results.length > 1 && bestMatch.relevanceScore > 0.4) {
-        const topResults = results.slice(0, 3);
-        const synthesizedAnswer = `Based on available information:\n\n${topResults.map((result, index) => 
-          `${index + 1}. ${result.answer} (Source: ${result.source})`
-        ).join('\n\n')}`;
-        
-        return {
-          answer: synthesizedAnswer,
-          source: `Multiple sources (${topResults.length} references)`,
-          sourceType: 'ai_generated',
-          searchResults: topResults,
-        };
+        try {
+          const aiResult = await generateAIAnswer(question, results.slice(0, 5), conversationHistory);
+          
+          return {
+            answer: aiResult.answer,
+            source: `AI-generated from ${aiResult.sources.length} sources`,
+            sourceType: 'ai_generated',
+            searchResults: results.slice(0, 5),
+            aiGenerated: true,
+          };
+        } catch (aiError) {
+          console.error('AI generation failed, using fallback:', aiError);
+          // Fall back to manual synthesis
+          const topResults = results.slice(0, 3);
+          const synthesizedAnswer = `Based on available information:\n\n${topResults.map((result, index) => 
+            `${index + 1}. ${result.answer} (Source: ${result.source})`
+          ).join('\n\n')}`;
+          
+          return {
+            answer: synthesizedAnswer,
+            source: `Multiple sources (${topResults.length} references)`,
+            sourceType: 'ai_generated',
+            searchResults: topResults,
+          };
+        }
       }
     }
 
@@ -131,7 +153,7 @@ export const useKnowledgeBase = () => {
     return {
       answer: "I couldn't find a specific answer to your question in the current knowledge base. Here are some suggestions:\n\n1. Try rephrasing your question with different keywords\n2. Check if your question relates to company policies, procedures, or guidelines\n3. Contact your administrator if this topic should be added to the knowledge base",
       sourceType: 'ai_generated',
-      searchResults: results.slice(0, 5), // Show some related results anyway
+      searchResults: results.slice(0, 5),
     };
   };
 

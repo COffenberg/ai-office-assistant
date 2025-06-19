@@ -53,6 +53,41 @@ export type Database = {
           },
         ]
       }
+      conversation_context: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_context_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_chunks: {
         Row: {
           chunk_index: number
@@ -93,6 +128,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          ai_summary: string | null
           content_summary: string | null
           created_at: string
           file_path: string
@@ -100,7 +136,9 @@ export type Database = {
           file_type: string
           id: string
           keywords: string[] | null
+          last_processed_at: string | null
           name: string
+          processing_error: string | null
           processing_status: string | null
           total_chunks: number | null
           updated_at: string
@@ -108,6 +146,7 @@ export type Database = {
           uploaded_by: string
         }
         Insert: {
+          ai_summary?: string | null
           content_summary?: string | null
           created_at?: string
           file_path: string
@@ -115,7 +154,9 @@ export type Database = {
           file_type: string
           id?: string
           keywords?: string[] | null
+          last_processed_at?: string | null
           name: string
+          processing_error?: string | null
           processing_status?: string | null
           total_chunks?: number | null
           updated_at?: string
@@ -123,6 +164,7 @@ export type Database = {
           uploaded_by: string
         }
         Update: {
+          ai_summary?: string | null
           content_summary?: string | null
           created_at?: string
           file_path?: string
@@ -130,7 +172,9 @@ export type Database = {
           file_type?: string
           id?: string
           keywords?: string[] | null
+          last_processed_at?: string | null
           name?: string
+          processing_error?: string | null
           processing_status?: string | null
           total_chunks?: number | null
           updated_at?: string
@@ -146,6 +190,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      knowledge_gaps: {
+        Row: {
+          created_at: string
+          frequency: number
+          id: string
+          last_searched: string
+          search_query: string
+          status: string
+          suggested_action: string | null
+        }
+        Insert: {
+          created_at?: string
+          frequency?: number
+          id?: string
+          last_searched?: string
+          search_query: string
+          status?: string
+          suggested_action?: string | null
+        }
+        Update: {
+          created_at?: string
+          frequency?: number
+          id?: string
+          last_searched?: string
+          search_query?: string
+          status?: string
+          suggested_action?: string | null
+        }
+        Relationships: []
       }
       knowledge_sources: {
         Row: {
@@ -294,6 +368,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_enhanced_search: {
+        Args: {
+          search_query: string
+          user_context?: Json
+          limit_results?: number
+        }
+        Returns: {
+          result_type: string
+          result_id: string
+          title: string
+          content: string
+          source: string
+          relevance_score: number
+          context_match: number
+        }[]
+      }
       enhanced_search: {
         Args: { search_query: string; limit_results?: number }
         Returns: {
@@ -315,6 +405,10 @@ export type Database = {
       }
       increment_qa_usage: {
         Args: { qa_id: string }
+        Returns: undefined
+      }
+      track_knowledge_gap: {
+        Args: { query_text: string; results_found: number }
         Returns: undefined
       }
       update_document_processing_status: {
