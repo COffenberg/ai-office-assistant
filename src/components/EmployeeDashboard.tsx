@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
 
-  // Load suggested questions on mount
+  // Load suggested questions on mount - removed problematic dependency
   useEffect(() => {
     const loadSuggestions = async () => {
       try {
@@ -39,16 +39,24 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
         setSuggestedQuestions(suggestions);
       } catch (error) {
         console.error('Failed to load suggestions:', error);
+        // Set default suggestions if loading fails
+        setSuggestedQuestions([
+          "What is our remote work policy?",
+          "How do I submit expense reports?",
+          "What are the vacation day policies?",
+          "How do I book a conference room?",
+          "What is the password reset process?"
+        ]);
       }
     };
     loadSuggestions();
-  }, [getSuggestedQuestions]);
+  }, []); // Empty dependency array to run only once
 
   const handleLogout = async () => {
     await signOut();
   };
 
-  const handleAskQuestion = async () => {
+  const handleAskQuestion = useCallback(async () => {
     if (!currentQuestion.trim()) {
       toast.error("Please enter a question.");
       return;
@@ -81,18 +89,18 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentQuestion, generateAnswer, addMessage]);
 
-  const handleRateAnswer = (messageId: string, rating: number) => {
+  const handleRateAnswer = useCallback((messageId: string, rating: number) => {
     rateAnswer({ messageId, rating });
-  };
+  }, [rateAnswer]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleAskQuestion();
     }
-  };
+  }, [handleAskQuestion]);
 
   const defaultSuggestions = [
     "What is our remote work policy?",

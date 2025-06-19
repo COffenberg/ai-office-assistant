@@ -1,4 +1,5 @@
 
+import { useCallback } from 'react';
 import { useQAPairs } from './useQAPairs';
 import { useDocuments } from './useDocuments';
 import { useSearchAnalytics } from './useSearchAnalytics';
@@ -31,7 +32,7 @@ export const useKnowledgeBase = () => {
   const { trackSearch } = useSearchAnalytics();
   const { generateAIAnswer } = useAISynthesis();
 
-  const searchKnowledgeBase = async (query: string, userContext?: any): Promise<SearchResult[]> => {
+  const searchKnowledgeBase = useCallback(async (query: string, userContext?: any): Promise<SearchResult[]> => {
     try {
       // Use the enhanced AI search function from the database
       const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
@@ -67,9 +68,9 @@ export const useKnowledgeBase = () => {
       console.error('Knowledge base search error:', error);
       return await basicSearch(query);
     }
-  };
+  }, [trackSearch]);
 
-  const basicSearch = async (query: string): Promise<SearchResult[]> => {
+  const basicSearch = useCallback(async (query: string): Promise<SearchResult[]> => {
     // Fallback to original search method
     const qaResults = await searchQAPairs(query);
     
@@ -84,9 +85,9 @@ export const useKnowledgeBase = () => {
     }));
 
     return qaSearchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
-  };
+  }, [searchQAPairs]);
 
-  const generateAnswer = async (
+  const generateAnswer = useCallback(async (
     question: string,
     conversationHistory: any[] = []
   ): Promise<{
@@ -155,9 +156,9 @@ export const useKnowledgeBase = () => {
       sourceType: 'ai_generated',
       searchResults: results.slice(0, 5),
     };
-  };
+  }, [searchKnowledgeBase, generateAIAnswer]);
 
-  const getSuggestedQuestions = async (): Promise<string[]> => {
+  const getSuggestedQuestions = useCallback(async (): Promise<string[]> => {
     // Get popular questions from analytics and Q&A pairs
     const recentQA = qaPairs
       .sort((a, b) => b.usage_count - a.usage_count)
@@ -165,7 +166,7 @@ export const useKnowledgeBase = () => {
       .map(qa => qa.question);
 
     return recentQA;
-  };
+  }, [qaPairs]);
 
   return {
     qaPairs,
