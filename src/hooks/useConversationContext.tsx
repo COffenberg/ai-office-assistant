@@ -52,7 +52,7 @@ export const useConversationContext = (sessionId: string) => {
       if (data) {
         // Parse the JSON messages back to ConversationMessage[]
         const parsedMessages = Array.isArray(data.messages) 
-          ? data.messages as ConversationMessage[]
+          ? (data.messages as unknown) as ConversationMessage[]
           : [];
         
         setContext({
@@ -80,7 +80,7 @@ export const useConversationContext = (sessionId: string) => {
         const { data, error } = await supabase
           .from('conversation_context')
           .update({
-            messages: updatedMessages as any, // Cast to any to handle Json type
+            messages: (updatedMessages as unknown) as any, // Cast to unknown first, then any for Json type
             updated_at: new Date().toISOString(),
           })
           .eq('id', context.id)
@@ -100,7 +100,7 @@ export const useConversationContext = (sessionId: string) => {
           .insert({
             user_id: user.id,
             session_id: sessionId,
-            messages: updatedMessages as any, // Cast to any to handle Json type
+            messages: (updatedMessages as unknown) as any, // Cast to unknown first, then any for Json type
           })
           .select()
           .single();
