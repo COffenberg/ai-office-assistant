@@ -53,39 +53,86 @@ export type Database = {
           },
         ]
       }
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          content_vector: string | null
+          created_at: string
+          document_id: string
+          id: string
+          page_number: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          content_vector?: string | null
+          created_at?: string
+          document_id: string
+          id?: string
+          page_number?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          content_vector?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          page_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
+          content_summary: string | null
           created_at: string
           file_path: string
           file_size: number
           file_type: string
           id: string
+          keywords: string[] | null
           name: string
           processing_status: string | null
+          total_chunks: number | null
           updated_at: string
           upload_date: string
           uploaded_by: string
         }
         Insert: {
+          content_summary?: string | null
           created_at?: string
           file_path: string
           file_size: number
           file_type: string
           id?: string
+          keywords?: string[] | null
           name: string
           processing_status?: string | null
+          total_chunks?: number | null
           updated_at?: string
           upload_date?: string
           uploaded_by: string
         }
         Update: {
+          content_summary?: string | null
           created_at?: string
           file_path?: string
           file_size?: number
           file_type?: string
           id?: string
+          keywords?: string[] | null
           name?: string
           processing_status?: string | null
+          total_chunks?: number | null
           updated_at?: string
           upload_date?: string
           uploaded_by?: string
@@ -201,11 +248,63 @@ export type Database = {
           },
         ]
       }
+      search_analytics: {
+        Row: {
+          clicked_result_id: string | null
+          clicked_result_type: string | null
+          created_at: string
+          id: string
+          results_count: number
+          satisfaction_rating: number | null
+          search_query: string
+          user_id: string
+        }
+        Insert: {
+          clicked_result_id?: string | null
+          clicked_result_type?: string | null
+          created_at?: string
+          id?: string
+          results_count?: number
+          satisfaction_rating?: number | null
+          search_query: string
+          user_id: string
+        }
+        Update: {
+          clicked_result_id?: string | null
+          clicked_result_type?: string | null
+          created_at?: string
+          id?: string
+          results_count?: number
+          satisfaction_rating?: number | null
+          search_query?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      enhanced_search: {
+        Args: { search_query: string; limit_results?: number }
+        Returns: {
+          result_type: string
+          result_id: string
+          title: string
+          content: string
+          source: string
+          relevance_score: number
+        }[]
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["app_role"]
@@ -216,6 +315,16 @@ export type Database = {
       }
       increment_qa_usage: {
         Args: { qa_id: string }
+        Returns: undefined
+      }
+      update_document_processing_status: {
+        Args: {
+          doc_id: string
+          status: string
+          summary?: string
+          chunk_count?: number
+          doc_keywords?: string[]
+        }
         Returns: undefined
       }
     }

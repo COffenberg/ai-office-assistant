@@ -7,11 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useQAPairs } from "@/hooks/useQAPairs";
+import AdminAnalytics from "./AdminAnalytics";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -118,7 +119,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-sm text-gray-600">Manage documents and knowledge base</p>
+                <p className="text-sm text-gray-600">Manage documents, knowledge base, and analytics</p>
               </div>
             </div>
             
@@ -143,7 +144,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs defaultValue="documents" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="documents" className="flex items-center space-x-2">
               <FileText className="w-4 h-4" />
               <span>Documents</span>
@@ -151,6 +152,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
             <TabsTrigger value="qa" className="flex items-center space-x-2">
               <MessageSquare className="w-4 h-4" />
               <span>Q&A Management</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Analytics</span>
             </TabsTrigger>
           </TabsList>
 
@@ -368,6 +373,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <AdminAnalytics />
           </TabsContent>
         </Tabs>
       </div>

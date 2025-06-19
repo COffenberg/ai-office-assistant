@@ -1,6 +1,7 @@
 
 import { useQAPairs } from './useQAPairs';
 import { useDocuments } from './useDocuments';
+import { useSearchAnalytics } from './useSearchAnalytics';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SearchResult {
@@ -13,36 +14,72 @@ export interface SearchResult {
   relevanceScore: number;
 }
 
+export interface EnhancedSearchResult {
+  result_type: 'qa_pair' | 'document';
+  result_id: string;
+  title: string;
+  content: string;
+  source: string;
+  relevance_score: number;
+}
+
 export const useKnowledgeBase = () => {
   const { qaPairs, searchQAPairs } = useQAPairs();
   const { documents } = useDocuments();
+  const { trackSearch } = useSearchAnalytics();
 
   const searchKnowledgeBase = async (query: string): Promise<SearchResult[]> => {
     try {
-      // Search Q&A pairs
-      const qaResults = await searchQAPairs(query);
-      
-      // Convert Q&A results to SearchResult format
-      const qaSearchResults: SearchResult[] = qaResults.map(qa => ({
-        type: 'qa_pair' as const,
-        id: qa.id,
-        question: qa.question,
-        answer: qa.answer,
-        source: `Q&A - ${qa.category}`,
-        category: qa.category,
-        relevanceScore: calculateRelevanceScore(query, qa.question + ' ' + qa.answer),
-      }));
+      // Use the enhanced search function from the database
+      const { data: results, error } = await supabase.rpc('enhanced_search', {
+        search_query: query,
+        limit_results: 20
+      });
 
-      // For now, we'll focus on Q&A pairs. Document search would require 
-      // more complex text processing and vector search capabilities
-      const allResults = [...qaSearchResults];
+      if (error) {
+        console.error('Enhanced search error:', error);
+        // Fallback to basic search
+        return await basicSearch(query);
+      }
 
-      // Sort by relevance score
-      return allResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      // Track the search
+      trackSearch({
+        search_query: query,
+        results_count: results?.length || 0,
+      });
+
+      // Convert database results to SearchResult format
+      const searchResults: SearchResult[] = (results as EnhancedSearchResult[])?.map(result => ({
+        type: result.result_type,
+        id: result.result_id,
+        question: result.result_type === 'qa_pair' ? result.title : undefined,
+        answer: result.content,
+        source: result.source,
+        relevanceScore: result.relevance_score,
+      })) || [];
+
+      return searchResults;
     } catch (error) {
       console.error('Knowledge base search error:', error);
-      return [];
+      return await basicSearch(query);
     }
+  };
+
+  const basicSearch = async (query: string): Promise<SearchResult[]> => {
+    // Fallback to original search method
+    const qaResults = await searchQAPairs(query);
+    
+    const qaSearchResults: SearchResult[] = qaResults.map(qa => ({
+      type: 'qa_pair' as const,
+      id: qa.id,
+      question: qa.question,
+      answer: qa.answer,
+      source: `Q&A - ${qa.category}`,
+      category: qa.category,
+      relevanceScore: calculateRelevanceScore(query, qa.question + ' ' + qa.answer),
+    }));
+
+    return qaSearchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
   };
 
   const generateAnswer = async (question: string): Promise<{
@@ -50,6 +87,7 @@ export const useKnowledgeBase = () => {
     source?: string;
     sourceType?: 'qa_pair' | 'document' | 'ai_generated';
     sourceId?: string;
+    searchResults?: SearchResult[];
   }> => {
     // Search for relevant content
     const results = await searchKnowledgeBase(question);
@@ -69,15 +107,42 @@ export const useKnowledgeBase = () => {
           source: bestMatch.source,
           sourceType: bestMatch.type,
           sourceId: bestMatch.id,
+          searchResults: results.slice(0, 3), // Include top 3 results for context
+        };
+      }
+      
+      // If we have moderate matches, provide a synthesized answer
+      if (results.length > 1 && bestMatch.relevanceScore > 0.4) {
+        const topResults = results.slice(0, 3);
+        const synthesizedAnswer = `Based on available information:\n\n${topResults.map((result, index) => 
+          `${index + 1}. ${result.answer} (Source: ${result.source})`
+        ).join('\n\n')}`;
+        
+        return {
+          answer: synthesizedAnswer,
+          source: `Multiple sources (${topResults.length} references)`,
+          sourceType: 'ai_generated',
+          searchResults: topResults,
         };
       }
     }
 
     // No good match found
     return {
-      answer: "Sorry, I couldn't find an answer based on the current material. Try rephrasing your question, and if this topic should be included, feel free to let your admin know.",
+      answer: "I couldn't find a specific answer to your question in the current knowledge base. Here are some suggestions:\n\n1. Try rephrasing your question with different keywords\n2. Check if your question relates to company policies, procedures, or guidelines\n3. Contact your administrator if this topic should be added to the knowledge base",
       sourceType: 'ai_generated',
+      searchResults: results.slice(0, 5), // Show some related results anyway
     };
+  };
+
+  const getSuggestedQuestions = async (): Promise<string[]> => {
+    // Get popular questions from analytics and Q&A pairs
+    const recentQA = qaPairs
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, 5)
+      .map(qa => qa.question);
+
+    return recentQA;
   };
 
   return {
@@ -85,22 +150,28 @@ export const useKnowledgeBase = () => {
     documents,
     searchKnowledgeBase,
     generateAnswer,
+    getSuggestedQuestions,
   };
 };
 
-// Simple relevance scoring based on keyword matching
+// Enhanced relevance scoring
 function calculateRelevanceScore(query: string, content: string): number {
-  const queryWords = query.toLowerCase().split(/\s+/);
-  const contentWords = content.toLowerCase().split(/\s+/);
+  const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+  const contentWords = content.toLowerCase();
   
-  let matches = 0;
+  let exactMatches = 0;
+  let partialMatches = 0;
+  
   queryWords.forEach(queryWord => {
-    if (contentWords.some(contentWord => 
-      contentWord.includes(queryWord) || queryWord.includes(contentWord)
-    )) {
-      matches++;
+    if (contentWords.includes(queryWord)) {
+      exactMatches++;
+    } else if (contentWords.includes(queryWord.substring(0, queryWord.length - 1))) {
+      partialMatches++;
     }
   });
   
-  return matches / queryWords.length;
+  const exactScore = exactMatches / queryWords.length;
+  const partialScore = partialMatches / queryWords.length * 0.5;
+  
+  return Math.min(exactScore + partialScore, 1.0);
 }
