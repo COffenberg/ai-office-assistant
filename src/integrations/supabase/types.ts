@@ -9,6 +9,50 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      chat_history: {
+        Row: {
+          answer: string
+          id: string
+          question: string
+          rating: number | null
+          source_id: string | null
+          source_name: string | null
+          source_type: string | null
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          id?: string
+          question: string
+          rating?: number | null
+          source_id?: string | null
+          source_name?: string | null
+          source_type?: string | null
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          id?: string
+          question?: string
+          rating?: number | null
+          source_id?: string | null
+          source_name?: string | null
+          source_type?: string | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -56,6 +100,33 @@ export type Database = {
           },
         ]
       }
+      knowledge_sources: {
+        Row: {
+          content_excerpt: string | null
+          created_at: string
+          id: string
+          keywords: string[] | null
+          source_id: string
+          source_type: string
+        }
+        Insert: {
+          content_excerpt?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          source_id: string
+          source_type: string
+        }
+        Update: {
+          content_excerpt?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          source_id?: string
+          source_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -83,6 +154,53 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_pairs: {
+        Row: {
+          answer: string
+          category: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean | null
+          question: string
+          tags: string[] | null
+          updated_at: string
+          usage_count: number | null
+        }
+        Insert: {
+          answer: string
+          category?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean | null
+          question: string
+          tags?: string[] | null
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Update: {
+          answer?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean | null
+          question?: string
+          tags?: string[] | null
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_pairs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -95,6 +213,10 @@ export type Database = {
       has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
+      }
+      increment_qa_usage: {
+        Args: { qa_id: string }
+        Returns: undefined
       }
     }
     Enums: {

@@ -11,14 +11,7 @@ import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download }
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
-
-interface QAPair {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-  createdDate: string;
-}
+import { useQAPairs } from "@/hooks/useQAPairs";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -37,10 +30,14 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     isDeleting 
   } = useDocuments();
 
-  const [qaPairs, setQaPairs] = useState<QAPair[]>([
-    { id: '1', question: 'What is our remote work policy?', answer: 'Employees can work remotely up to 3 days per week with manager approval.', category: 'HR', createdDate: '2024-01-12' },
-    { id: '2', question: 'How do I reset my password?', answer: 'Contact IT support at support@company.com or call extension 1234.', category: 'IT', createdDate: '2024-01-08' }
-  ]);
+  const {
+    qaPairs,
+    isLoading: qaPairsLoading,
+    createQAPair,
+    deleteQAPair,
+    isCreating,
+    isDeleting: isDeletingQA
+  } = useQAPairs();
 
   const [newQuestion, setNewQuestion] = useState('');
   const [newAnswer, setNewAnswer] = useState('');
@@ -78,24 +75,19 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
       return;
     }
 
-    const newQA: QAPair = {
-      id: Date.now().toString(),
+    createQAPair({
       question: newQuestion.trim(),
       answer: newAnswer.trim(),
       category: newCategory.trim() || 'General',
-      createdDate: new Date().toISOString().split('T')[0]
-    };
+    });
 
-    setQaPairs(prev => [...prev, newQA]);
     setNewQuestion('');
     setNewAnswer('');
     setNewCategory('');
-    toast.success("Q&A pair added successfully!");
   };
 
   const handleDeleteQAPair = (id: string) => {
-    setQaPairs(prev => prev.filter(qa => qa.id !== id));
-    toast.success("Q&A pair deleted successfully!");
+    deleteQAPair(id);
   };
 
   const handleSignOut = async () => {
@@ -319,8 +311,12 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                     onChange={(e) => setNewCategory(e.target.value)}
                   />
                 </div>
-                <Button onClick={handleAddQAPair} className="w-full">
-                  Add Q&A Pair
+                <Button 
+                  onClick={handleAddQAPair} 
+                  className="w-full"
+                  disabled={isCreating}
+                >
+                  {isCreating ? 'Adding...' : 'Add Q&A Pair'}
                 </Button>
               </CardContent>
             </Card>
@@ -334,30 +330,42 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {qaPairs.map((qa) => (
-                    <div key={qa.id} className="p-4 border rounded-lg bg-white">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <Badge variant="outline">{qa.category}</Badge>
-                            <span className="text-xs text-gray-500">Added: {qa.createdDate}</span>
+                {qaPairsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading Q&A pairs...</div>
+                ) : qaPairs.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No Q&A pairs added yet</div>
+                ) : (
+                  <div className="space-y-4">
+                    {qaPairs.map((qa) => (
+                      <div key={qa.id} className="p-4 border rounded-lg bg-white">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Badge variant="outline">{qa.category}</Badge>
+                              <span className="text-xs text-gray-500">
+                                Added: {formatDate(qa.created_at)}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Used: {qa.usage_count} times
+                              </span>
+                            </div>
+                            <h4 className="font-medium text-gray-900 mb-2">{qa.question}</h4>
+                            <p className="text-gray-700 text-sm">{qa.answer}</p>
                           </div>
-                          <h4 className="font-medium text-gray-900 mb-2">{qa.question}</h4>
-                          <p className="text-gray-700 text-sm">{qa.answer}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteQAPair(qa.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
+                            disabled={isDeletingQA}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteQAPair(qa.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

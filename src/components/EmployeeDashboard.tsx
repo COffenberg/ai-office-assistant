@@ -5,17 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, MessageSquare, Search, User, LogOut } from "lucide-react";
+import { ArrowLeft, MessageSquare, Search, User, LogOut, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-
-interface ChatMessage {
-  id: string;
-  question: string;
-  answer: string;
-  timestamp: string;
-  source?: string;
-}
+import { useChatHistory } from "@/hooks/useChatHistory";
+import { useKnowledgeBase } from "@/hooks/useKnowledgeBase";
 
 interface EmployeeDashboardProps {
   onBack: () => void;
@@ -23,24 +17,16 @@ interface EmployeeDashboardProps {
 
 const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
   const { signOut } = useAuth();
+  const { chatHistory, addMessage, rateAnswer } = useChatHistory();
+  const { generateAnswer } = useKnowledgeBase();
+  
   const [currentQuestion, setCurrentQuestion] = useState('');
-  const [currentAnswer, setCurrentAnswer] = useState<{ answer: string; source?: string } | null>(null);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      question: 'What is our remote work policy?',
-      answer: 'According to the Employee Handbook, employees can work remotely up to 3 days per week with manager approval. Remote work requests should be submitted at least 24 hours in advance.',
-      timestamp: '2024-01-15 10:30 AM',
-      source: 'Employee Handbook.pdf'
-    },
-    {
-      id: '2',
-      question: 'How do I reset my password?',
-      answer: 'To reset your password, you can contact IT support at support@company.com or call extension 1234. You can also use the self-service portal at portal.company.com/reset.',
-      timestamp: '2024-01-14 2:15 PM',
-      source: 'IT Security Policy.docx'
-    }
-  ]);
+  const [currentAnswer, setCurrentAnswer] = useState<{ 
+    answer: string; 
+    source?: string;
+    sourceType?: string;
+    sourceId?: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = async () => {
@@ -56,56 +42,34 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
     setIsLoading(true);
     setCurrentAnswer(null);
 
-    // Simulate AI processing delay
-    setTimeout(() => {
-      const answer = generateMockAnswer(currentQuestion);
-      const source = answer !== "Sorry, I couldn't find an answer based on the current material. Try rephrasing your question, and if this topic should be included, feel free to let your admin know." 
-        ? getRandomSource() 
-        : undefined;
+    try {
+      // Use the knowledge base to generate an answer
+      const result = await generateAnswer(currentQuestion);
+      
+      // Set the current answer for display
+      setCurrentAnswer(result);
 
-      const newMessage: ChatMessage = {
-        id: Date.now().toString(),
+      // Save to chat history
+      addMessage({
         question: currentQuestion,
-        answer,
-        timestamp: new Date().toLocaleString(),
-        source
-      };
+        answer: result.answer,
+        source_type: result.sourceType,
+        source_id: result.sourceId,
+        source_name: result.source,
+      });
 
-      setCurrentAnswer({ answer, source });
-      setChatHistory(prev => [newMessage, ...prev]);
       setCurrentQuestion('');
-      setIsLoading(false);
       toast.success("Answer generated successfully!");
-    }, 1500);
-  };
-
-  const generateMockAnswer = (question: string): string => {
-    const lowerQuestion = question.toLowerCase();
-    
-    if (lowerQuestion.includes('vacation') || lowerQuestion.includes('time off') || lowerQuestion.includes('pto')) {
-      return "According to our HR policy, full-time employees accrue 15 days of PTO annually, with the ability to carry over up to 5 days to the following year. Vacation requests should be submitted through the HR portal at least 2 weeks in advance.";
-    } else if (lowerQuestion.includes('password') || lowerQuestion.includes('login') || lowerQuestion.includes('access')) {
-      return "For password-related issues, contact IT support at support@company.com or call extension 1234. For immediate assistance, use the self-service portal at portal.company.com. Password requirements include 8+ characters with uppercase, lowercase, and special characters.";
-    } else if (lowerQuestion.includes('expense') || lowerQuestion.includes('reimbursement')) {
-      return "Expense reports should be submitted within 30 days of incurring the expense. Use the Expense Management System at expenses.company.com. All receipts must be attached for amounts over $25. Approval is required from your direct manager.";
-    } else if (lowerQuestion.includes('meeting') || lowerQuestion.includes('conference room')) {
-      return "Conference rooms can be booked through the Room Booking System accessible via the company intranet. Rooms are available from 7 AM to 7 PM on weekdays. For technical support during meetings, contact facilities at ext. 5678.";
-    } else if (lowerQuestion.includes('remote') || lowerQuestion.includes('work from home')) {
-      return "According to the Employee Handbook, employees can work remotely up to 3 days per week with manager approval. Remote work requests should be submitted at least 24 hours in advance.";
-    } else {
-      return "Sorry, I couldn't find an answer based on the current material. Try rephrasing your question, and if this topic should be included, feel free to let your admin know.";
+    } catch (error) {
+      console.error('Error generating answer:', error);
+      toast.error("Failed to generate answer. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getRandomSource = (): string => {
-    const sources = [
-      'Employee Handbook.pdf',
-      'IT Security Policy.docx',
-      'HR Policies.pdf',
-      'Office Guidelines.docx',
-      'Company FAQ'
-    ];
-    return sources[Math.floor(Math.random() * sources.length)];
+  const handleRateAnswer = (messageId: string, rating: number) => {
+    rateAnswer({ messageId, rating });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -114,6 +78,14 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
       handleAskQuestion();
     }
   };
+
+  const suggestedQuestions = [
+    "What is our remote work policy?",
+    "How do I submit expense reports?",
+    "What are the vacation day policies?",
+    "How do I book a conference room?",
+    "What is the password reset process?"
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -209,13 +181,7 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {[
-                "What is our remote work policy?",
-                "How do I submit expense reports?",
-                "What are the vacation day policies?",
-                "How do I book a conference room?",
-                "What is the password reset process?"
-              ].map((suggestion, index) => (
+              {suggestedQuestions.map((suggestion, index) => (
                 <Button
                   key={index}
                   variant="outline"
@@ -245,35 +211,60 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
           <CardContent>
             <ScrollArea className="h-96">
               <div className="space-y-6">
-                {chatHistory.map((chat) => (
-                  <div key={chat.id} className="border-l-4 border-blue-500 pl-4 py-2">
-                    <div className="flex items-start space-x-3 mb-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <User className="w-4 h-4 text-green-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{chat.question}</p>
-                        <p className="text-xs text-gray-500 mt-1">{chat.timestamp}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start space-x-3 ml-11">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <MessageSquare className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div className="flex-1 bg-gray-50 rounde-lg p-3 rounded-lg">
-                        <p className="text-gray-800 text-sm leading-relaxed">{chat.answer}</p>
-                        {chat.source && (
-                          <div className="mt-2">
-                            <Badge variant="outline" className="text-xs">
-                              Source: {chat.source}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                {chatHistory.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No chat history yet. Ask your first question above!
                   </div>
-                ))}
+                ) : (
+                  chatHistory.map((chat) => (
+                    <div key={chat.id} className="border-l-4 border-blue-500 pl-4 py-2">
+                      <div className="flex items-start space-x-3 mb-3">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{chat.question}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(chat.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start space-x-3 ml-11">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <MessageSquare className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1 bg-gray-50 rounded-lg p-3">
+                          <p className="text-gray-800 text-sm leading-relaxed">{chat.answer}</p>
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="flex items-center space-x-2">
+                              {chat.source_name && (
+                                <Badge variant="outline" className="text-xs">
+                                  Source: {chat.source_name}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              {[1, 2, 3, 4, 5].map((rating) => (
+                                <button
+                                  key={rating}
+                                  onClick={() => handleRateAnswer(chat.id, rating)}
+                                  className={`w-4 h-4 ${
+                                    chat.rating && chat.rating >= rating
+                                      ? 'text-yellow-500'
+                                      : 'text-gray-300 hover:text-yellow-400'
+                                  }`}
+                                >
+                                  <Star className="w-full h-full fill-current" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </ScrollArea>
           </CardContent>
