@@ -47,17 +47,18 @@ export const useDocuments = () => {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
 
+      // Set initial progress
+      setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+
       // Upload file to storage
       const { error: uploadError } = await supabase.storage
         .from('documents')
-        .upload(filePath, file, {
-          onUploadProgress: (progress) => {
-            const percentage = (progress.loaded / progress.total) * 100;
-            setUploadProgress(prev => ({ ...prev, [file.name]: percentage }));
-          }
-        });
+        .upload(filePath, file);
 
       if (uploadError) throw uploadError;
+
+      // Update progress to 100%
+      setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
 
       // Create document record
       const { data, error: dbError } = await supabase
@@ -134,12 +135,12 @@ export const useDocuments = () => {
 
       // Create download link
       const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = document.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = document.name;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
       toast.success('Document downloaded successfully!');
