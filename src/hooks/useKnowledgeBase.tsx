@@ -33,6 +33,8 @@ export const useKnowledgeBase = () => {
   const { generateAIAnswer } = useAISynthesis();
 
   const searchKnowledgeBase = useCallback(async (query: string, userContext?: any): Promise<SearchResult[]> => {
+    console.log('Searching knowledge base for:', query);
+    
     try {
       // Use the enhanced AI search function from the database
       const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
@@ -44,8 +46,11 @@ export const useKnowledgeBase = () => {
       if (error) {
         console.error('AI enhanced search error:', error);
         // Fallback to basic search
+        console.log('Falling back to basic search');
         return await basicSearch(query);
       }
+
+      console.log('AI enhanced search results:', results);
 
       // Track the search
       trackSearch({
@@ -63,6 +68,7 @@ export const useKnowledgeBase = () => {
         relevanceScore: result.relevance_score + (result.context_match || 0),
       })) || [];
 
+      console.log('Processed search results:', searchResults);
       return searchResults;
     } catch (error) {
       console.error('Knowledge base search error:', error);
@@ -71,6 +77,8 @@ export const useKnowledgeBase = () => {
   }, [trackSearch]);
 
   const basicSearch = useCallback(async (query: string): Promise<SearchResult[]> => {
+    console.log('Performing basic search for:', query);
+    
     // Fallback to original search method
     const qaResults = await searchQAPairs(query);
     
@@ -84,6 +92,7 @@ export const useKnowledgeBase = () => {
       relevanceScore: calculateRelevanceScore(query, qa.question + ' ' + qa.answer),
     }));
 
+    console.log('Basic search results:', qaSearchResults);
     return qaSearchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [searchQAPairs]);
 
@@ -98,14 +107,20 @@ export const useKnowledgeBase = () => {
     searchResults?: SearchResult[];
     aiGenerated?: boolean;
   }> => {
+    console.log('Generating answer for:', question);
+    
     // Search for relevant content
     const results = await searchKnowledgeBase(question);
+    console.log('Search results for answer generation:', results);
     
     if (results.length > 0) {
       const bestMatch = results[0];
+      console.log('Best match found:', bestMatch);
       
       // If we have a high-confidence match, use it directly
       if (bestMatch.relevanceScore > 0.8) {
+        console.log('Using high-confidence direct match');
+        
         // Increment usage count for Q&A pairs
         if (bestMatch.type === 'qa_pair') {
           await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
@@ -122,8 +137,11 @@ export const useKnowledgeBase = () => {
       
       // If we have moderate matches, try AI synthesis
       if (results.length > 1 && bestMatch.relevanceScore > 0.4) {
+        console.log('Attempting AI synthesis with', results.length, 'results');
+        
         try {
           const aiResult = await generateAIAnswer(question, results.slice(0, 5), conversationHistory);
+          console.log('AI synthesis successful:', aiResult);
           
           return {
             answer: aiResult.answer,
@@ -150,6 +168,7 @@ export const useKnowledgeBase = () => {
       }
     }
 
+    console.log('No good matches found, returning default response');
     // No good match found
     return {
       answer: "I couldn't find a specific answer to your question in the current knowledge base. Here are some suggestions:\n\n1. Try rephrasing your question with different keywords\n2. Check if your question relates to company policies, procedures, or guidelines\n3. Contact your administrator if this topic should be added to the knowledge base",
