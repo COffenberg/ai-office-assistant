@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -258,16 +259,16 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                               >
                                 {doc.processing_status}
                               </Badge>
-                              {doc.ai_summary && (
+                              {(doc as any).ai_summary && (
                                 <Badge variant="outline" className="text-xs">
                                   <Brain className="w-3 h-3 mr-1" />
                                   AI Enhanced
                                 </Badge>
                               )}
                             </div>
-                            {doc.ai_summary && (
+                            {(doc as any).ai_summary && (
                               <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                {doc.ai_summary}
+                                {(doc as any).ai_summary}
                               </p>
                             )}
                           </div>

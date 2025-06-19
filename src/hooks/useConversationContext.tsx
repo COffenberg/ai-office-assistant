@@ -49,7 +49,17 @@ export const useConversationContext = (sessionId: string) => {
         throw error;
       }
 
-      setContext(data);
+      if (data) {
+        // Parse the JSON messages back to ConversationMessage[]
+        const parsedMessages = Array.isArray(data.messages) 
+          ? data.messages as ConversationMessage[]
+          : [];
+        
+        setContext({
+          ...data,
+          messages: parsedMessages,
+        });
+      }
     } catch (error) {
       console.error('Error loading conversation context:', error);
     } finally {
@@ -70,7 +80,7 @@ export const useConversationContext = (sessionId: string) => {
         const { data, error } = await supabase
           .from('conversation_context')
           .update({
-            messages: updatedMessages,
+            messages: updatedMessages as any, // Cast to any to handle Json type
             updated_at: new Date().toISOString(),
           })
           .eq('id', context.id)
@@ -78,7 +88,11 @@ export const useConversationContext = (sessionId: string) => {
           .single();
 
         if (error) throw error;
-        setContext(data);
+        
+        setContext({
+          ...data,
+          messages: updatedMessages,
+        });
       } else {
         // Create new context
         const { data, error } = await supabase
@@ -86,13 +100,17 @@ export const useConversationContext = (sessionId: string) => {
           .insert({
             user_id: user.id,
             session_id: sessionId,
-            messages: updatedMessages,
+            messages: updatedMessages as any, // Cast to any to handle Json type
           })
           .select()
           .single();
 
         if (error) throw error;
-        setContext(data);
+        
+        setContext({
+          ...data,
+          messages: updatedMessages,
+        });
       }
     } catch (error) {
       console.error('Error adding message to context:', error);
