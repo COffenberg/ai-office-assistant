@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, MessageSquare, Search, User } from "lucide-react";
+import { ArrowLeft, MessageSquare, Search, User, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ChatMessage {
   id: string;
@@ -21,7 +22,9 @@ interface EmployeeDashboardProps {
 }
 
 const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
+  const { signOut } = useAuth();
   const [currentQuestion, setCurrentQuestion] = useState('');
+  const [currentAnswer, setCurrentAnswer] = useState<{ answer: string; source?: string } | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -40,6 +43,10 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleLogout = async () => {
+    await signOut();
+  };
+
   const handleAskQuestion = async () => {
     if (!currentQuestion.trim()) {
       toast.error("Please enter a question.");
@@ -47,17 +54,24 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
     }
 
     setIsLoading(true);
+    setCurrentAnswer(null);
 
     // Simulate AI processing delay
     setTimeout(() => {
+      const answer = generateMockAnswer(currentQuestion);
+      const source = answer !== "Sorry, I couldn't find an answer based on the current material. Try rephrasing your question, and if this topic should be included, feel free to let your admin know." 
+        ? getRandomSource() 
+        : undefined;
+
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
         question: currentQuestion,
-        answer: generateMockAnswer(currentQuestion),
+        answer,
         timestamp: new Date().toLocaleString(),
-        source: getRandomSource()
+        source
       };
 
+      setCurrentAnswer({ answer, source });
       setChatHistory(prev => [newMessage, ...prev]);
       setCurrentQuestion('');
       setIsLoading(false);
@@ -76,8 +90,10 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
       return "Expense reports should be submitted within 30 days of incurring the expense. Use the Expense Management System at expenses.company.com. All receipts must be attached for amounts over $25. Approval is required from your direct manager.";
     } else if (lowerQuestion.includes('meeting') || lowerQuestion.includes('conference room')) {
       return "Conference rooms can be booked through the Room Booking System accessible via the company intranet. Rooms are available from 7 AM to 7 PM on weekdays. For technical support during meetings, contact facilities at ext. 5678.";
+    } else if (lowerQuestion.includes('remote') || lowerQuestion.includes('work from home')) {
+      return "According to the Employee Handbook, employees can work remotely up to 3 days per week with manager approval. Remote work requests should be submitted at least 24 hours in advance.";
     } else {
-      return "Based on the available company documentation, here's what I found relevant to your question. For more specific information, please check the complete policy documents or contact the appropriate department directly.";
+      return "Sorry, I couldn't find an answer based on the current material. Try rephrasing your question, and if this topic should be included, feel free to let your admin know.";
     }
   };
 
@@ -104,14 +120,20 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={onBack} className="p-2">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">AI Assistant</h1>
-              <p className="text-sm text-gray-600">Ask questions about company policies and procedures</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={onBack} className="p-2">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">AI Assistant</h1>
+                <p className="text-sm text-gray-600">Ask questions about company policies and procedures</p>
+              </div>
             </div>
+            <Button variant="outline" onClick={handleLogout} className="flex items-center space-x-2">
+              <LogOut className="w-4 h-4" />
+              <span>Log out</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -158,6 +180,27 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Current Answer Display */}
+        {currentAnswer && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="text-lg">Answer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-gray-800 leading-relaxed">{currentAnswer.answer}</p>
+                {currentAnswer.source && (
+                  <div className="mt-3">
+                    <Badge variant="outline" className="text-xs">
+                      Source: {currentAnswer.source}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Suggestions */}
         <Card className="mb-8">
