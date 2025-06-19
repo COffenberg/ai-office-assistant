@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, FileText, MessageSquare, Upload, X } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Document {
   id: string;
@@ -30,6 +30,8 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
+  const { signOut, profile } = useAuth();
+  
   const [documents, setDocuments] = useState<Document[]>([
     { id: '1', name: 'Employee Handbook.pdf', type: 'PDF', uploadDate: '2024-01-15', size: '2.3 MB' },
     { id: '2', name: 'IT Security Policy.docx', type: 'DOCX', uploadDate: '2024-01-10', size: '1.8 MB' }
@@ -92,18 +94,40 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     toast.success("Q&A pair deleted successfully!");
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={onBack} className="p-2">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-sm text-gray-600">Manage documents and knowledge base</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={onBack} className="p-2">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p className="text-sm text-gray-600">Manage documents and knowledge base</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {profile && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <User className="w-4 h-4" />
+                  <span>{profile.full_name || profile.email}</span>
+                  <Badge variant="outline" className="text-xs">
+                    {profile.role}
+                  </Badge>
+                </div>
+              )}
+              <Button variant="outline" onClick={handleSignOut} className="flex items-center space-x-2">
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </Button>
             </div>
           </div>
         </div>

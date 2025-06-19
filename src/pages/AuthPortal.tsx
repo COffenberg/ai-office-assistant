@@ -6,23 +6,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn, Shield, Users } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 
 const AuthPortal = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn, user, profile } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect authenticated users
+  useEffect(() => {
+    if (user && profile) {
+      const redirectTo = profile.role === 'admin' ? '/admin' : '/employee';
+      navigate(redirectTo, { replace: true });
+    }
+  }, [user, profile, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder for actual authentication logic
-    console.log("Login attempt:", { email, password });
+    if (!email || !password) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await signIn(email, password);
+      if (!error) {
+        // Navigation will happen automatically via useEffect above
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleLogin(e as any);
     }
+  };
+
+  const handleTestLogin = async (role: 'admin' | 'employee') => {
+    // For testing purposes - in production, remove these test accounts
+    const testCredentials = {
+      admin: { email: 'admin@test.com', password: 'admin123' },
+      employee: { email: 'employee@test.com', password: 'employee123' }
+    };
+
+    setEmail(testCredentials[role].email);
+    setPassword(testCredentials[role].password);
   };
 
   return (
@@ -60,6 +92,7 @@ const AuthPortal = () => {
                   onKeyPress={handleKeyPress}
                   className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                   required
+                  disabled={isLoading}
                 />
               </div>
               
@@ -77,11 +110,13 @@ const AuthPortal = () => {
                     onKeyPress={handleKeyPress}
                     className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 pr-10"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -91,10 +126,19 @@ const AuthPortal = () => {
               <Button
                 type="submit"
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={!email || !password}
+                disabled={!email || !password || isLoading}
               >
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign In
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
+                  </>
+                )}
               </Button>
             </form>
 
@@ -102,12 +146,14 @@ const AuthPortal = () => {
               <button
                 onClick={() => navigate('/signup')}
                 className="text-blue-600 hover:text-blue-700 font-medium"
+                disabled={isLoading}
               >
                 Create account
               </button>
               <button
                 onClick={() => navigate('/forgotpassword')}
                 className="text-slate-600 hover:text-slate-700"
+                disabled={isLoading}
               >
                 Forgot password?
               </button>
@@ -115,23 +161,25 @@ const AuthPortal = () => {
 
             {/* Testing Buttons */}
             <div className="pt-4 border-t border-slate-200">
-              <p className="text-xs text-slate-500 text-center mb-3">Testing Access:</p>
+              <p className="text-xs text-slate-500 text-center mb-3">Quick Test Login:</p>
               <div className="space-y-2">
                 <Button
-                  onClick={() => navigate('/admin')}
+                  onClick={() => handleTestLogin('admin')}
                   variant="outline"
                   className="w-full h-10 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  disabled={isLoading}
                 >
                   <Shield className="w-4 h-4 mr-2" />
-                  Login as Admin
+                  Fill Admin Credentials
                 </Button>
                 <Button
-                  onClick={() => navigate('/employee')}
+                  onClick={() => handleTestLogin('employee')}
                   variant="outline"
                   className="w-full h-10 border-green-200 text-green-700 hover:bg-green-50"
+                  disabled={isLoading}
                 >
                   <Users className="w-4 h-4 mr-2" />
-                  Login as Employee
+                  Fill Employee Credentials
                 </Button>
               </div>
             </div>

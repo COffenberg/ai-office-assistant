@@ -6,19 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Shield } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { resetPassword } = useAuth();
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
     
-    // Placeholder for actual reset logic
-    console.log("Password reset requested for:", email);
-    setIsSubmitted(true);
+    setIsLoading(true);
+    try {
+      const { error } = await resetPassword(email);
+      if (!error) {
+        setIsSubmitted(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -36,6 +45,7 @@ const ForgotPassword = () => {
             variant="ghost"
             onClick={() => navigate('/auth')}
             className="p-2 hover:bg-white/50"
+            disabled={isLoading}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -77,16 +87,26 @@ const ForgotPassword = () => {
                     onKeyPress={handleKeyPress}
                     className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                     required
+                    disabled={isLoading}
                   />
                 </div>
 
                 <Button
                   type="submit"
                   className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                  disabled={!email}
+                  disabled={!email || isLoading}
                 >
-                  <Mail className="w-4 h-4 mr-2" />
-                  Send Reset Link
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4 mr-2" />
+                      Send Reset Link
+                    </>
+                  )}
                 </Button>
               </form>
             ) : (
@@ -101,6 +121,7 @@ const ForgotPassword = () => {
                   onClick={() => setIsSubmitted(false)}
                   variant="outline"
                   className="w-full"
+                  disabled={isLoading}
                 >
                   Send Another Link
                 </Button>
@@ -111,6 +132,7 @@ const ForgotPassword = () => {
               <button
                 onClick={() => navigate('/auth')}
                 className="text-sm text-slate-600 hover:text-slate-700"
+                disabled={isLoading}
               >
                 Remember your password? <span className="text-blue-600 font-medium">Sign in</span>
               </button>
