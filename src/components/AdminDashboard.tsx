@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,17 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  uploadDate: string;
-  size: string;
-}
+import { useDocuments } from "@/hooks/useDocuments";
 
 interface QAPair {
   id: string;
@@ -31,11 +26,16 @@ interface AdminDashboardProps {
 
 const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const { signOut, profile } = useAuth();
-  
-  const [documents, setDocuments] = useState<Document[]>([
-    { id: '1', name: 'Employee Handbook.pdf', type: 'PDF', uploadDate: '2024-01-15', size: '2.3 MB' },
-    { id: '2', name: 'IT Security Policy.docx', type: 'DOCX', uploadDate: '2024-01-10', size: '1.8 MB' }
-  ]);
+  const { 
+    documents, 
+    isLoading: documentsLoading, 
+    uploadProgress, 
+    uploadDocument, 
+    deleteDocument, 
+    downloadDocument,
+    isUploading,
+    isDeleting 
+  } = useDocuments();
 
   const [qaPairs, setQaPairs] = useState<QAPair[]>([
     { id: '1', question: 'What is our remote work policy?', answer: 'Employees can work remotely up to 3 days per week with manager approval.', category: 'HR', createdDate: '2024-01-12' },
@@ -50,17 +50,26 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     const files = event.target.files;
     if (files) {
       Array.from(files).forEach(file => {
-        const newDoc: Document = {
-          id: Date.now().toString() + Math.random(),
-          name: file.name,
-          type: file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN',
-          uploadDate: new Date().toISOString().split('T')[0],
-          size: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
-        };
-        setDocuments(prev => [...prev, newDoc]);
+        // Validate file type
+        const allowedTypes = ['pdf', 'doc', 'docx'];
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        
+        if (!fileExt || !allowedTypes.includes(fileExt)) {
+          toast.error(`File type not supported: ${file.name}. Please upload PDF, DOC, or DOCX files only.`);
+          return;
+        }
+
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`File too large: ${file.name}. Maximum size is 10MB.`);
+          return;
+        }
+
+        uploadDocument(file);
       });
-      toast.success("Document(s) uploaded successfully!");
     }
+    // Reset input
+    event.target.value = '';
   };
 
   const handleAddQAPair = () => {
@@ -84,11 +93,6 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     toast.success("Q&A pair added successfully!");
   };
 
-  const handleDeleteDocument = (id: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== id));
-    toast.success("Document deleted successfully!");
-  };
-
   const handleDeleteQAPair = (id: string) => {
     setQaPairs(prev => prev.filter(qa => qa.id !== id));
     toast.success("Q&A pair deleted successfully!");
@@ -96,6 +100,18 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
   };
 
   return (
@@ -155,7 +171,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                   <span>Upload Documents</span>
                 </CardTitle>
                 <CardDescription>
-                  Upload PDF, DOC, or DOCX files to add to the knowledge base
+                  Upload PDF, DOC, or DOCX files to add to the knowledge base (max 10MB per file)
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -167,20 +183,36 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                     onChange={handleFileUpload}
                     className="hidden"
                     id="file-upload"
+                    disabled={isUploading}
                   />
                   <label
                     htmlFor="file-upload"
-                    className="cursor-pointer flex flex-col items-center space-y-2"
+                    className={`cursor-pointer flex flex-col items-center space-y-2 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
                   >
                     <Upload className="w-8 h-8 text-gray-400" />
                     <span className="text-sm text-gray-600">
-                      Click to upload or drag and drop files here
+                      {isUploading ? 'Uploading...' : 'Click to upload or drag and drop files here'}
                     </span>
                     <span className="text-xs text-gray-500">
-                      Supported formats: PDF, DOC, DOCX
+                      Supported formats: PDF, DOC, DOCX (max 10MB each)
                     </span>
                   </label>
                 </div>
+
+                {/* Upload Progress */}
+                {Object.keys(uploadProgress).length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {Object.entries(uploadProgress).map(([fileName, progress]) => (
+                      <div key={fileName} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="truncate">{fileName}</span>
+                          <span>{Math.round(progress)}%</span>
+                        </div>
+                        <Progress value={progress} className="w-full" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -193,33 +225,55 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">{doc.name}</h4>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <Badge variant="secondary">{doc.type}</Badge>
-                            <span>{doc.size}</span>
-                            <span>Uploaded: {doc.uploadDate}</span>
+                {documentsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading documents...</div>
+                ) : documents.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No documents uploaded yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 truncate">{doc.name}</h4>
+                            <div className="flex items-center space-x-4 text-sm text-gray-500">
+                              <Badge variant="secondary">{doc.file_type}</Badge>
+                              <span>{formatFileSize(doc.file_size)}</span>
+                              <span>Uploaded: {formatDate(doc.upload_date)}</span>
+                              <Badge 
+                                variant={doc.processing_status === 'uploaded' ? 'outline' : 'default'}
+                              >
+                                {doc.processing_status}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => downloadDocument(doc)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteDocument(doc)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={isDeleting}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
