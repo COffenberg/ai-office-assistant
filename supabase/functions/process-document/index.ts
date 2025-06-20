@@ -11,9 +11,6 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
-// Import PDF parsing library
-import pdfParse from 'https://esm.sh/pdf-parse@1.1.1';
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -23,7 +20,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { documentId } = await req.json();
 
-    console.log('Processing document:', documentId);
+    console.log('=== DOCUMENT PROCESSING START ===');
+    console.log('Processing document ID:', documentId);
 
     // Get document details
     const { data: document, error: docError } = await supabase
@@ -33,8 +31,16 @@ serve(async (req) => {
       .single();
 
     if (docError || !document) {
+      console.error('Document not found:', docError);
       throw new Error('Document not found');
     }
+
+    console.log('Document details:', {
+      name: document.name,
+      file_type: document.file_type,
+      file_size: document.file_size,
+      file_path: document.file_path
+    });
 
     // Update processing status
     await supabase
@@ -43,75 +49,142 @@ serve(async (req) => {
       .eq('id', documentId);
 
     // Download the file from storage
+    console.log('Downloading file from storage...');
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
       .download(document.file_path);
 
     if (downloadError || !fileData) {
+      console.error('File download failed:', downloadError);
       throw new Error(`Failed to download file: ${downloadError?.message}`);
     }
+
+    console.log('File downloaded successfully, size:', fileData.size);
 
     let extractedContent = '';
     const fileType = document.file_type.toLowerCase();
 
-    console.log('Extracting content from file type:', fileType);
+    console.log('=== TEXT EXTRACTION START ===');
+    console.log('File type:', fileType);
 
     try {
       if (fileType === 'pdf') {
-        // Extract text from PDF
-        const arrayBuffer = await fileData.arrayBuffer();
-        const pdfData = await pdfParse(new Uint8Array(arrayBuffer));
-        extractedContent = pdfData.text;
-        console.log('PDF text extracted, length:', extractedContent.length);
-      } else if (fileType === 'txt') {
-        // Extract text from TXT file
-        extractedContent = await fileData.text();
-        console.log('TXT content extracted, length:', extractedContent.length);
-      } else if (fileType === 'docx') {
-        // For DOCX files, we'll use a simpler approach for now
-        // In production, you'd want to use mammoth.js or similar
+        console.log('Processing PDF file...');
+        // For now, we'll use a simple approach for PDFs
+        // In production, you might want to use a more sophisticated PDF parser
         const arrayBuffer = await fileData.arrayBuffer();
         const text = new TextDecoder().decode(arrayBuffer);
-        // Extract readable text (this is a simplified approach)
-        extractedContent = text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        console.log('DOCX content extracted (basic), length:', extractedContent.length);
-      } else {
-        // For other file types, try to extract as text
+        
+        // Try to extract readable text from PDF
+        const pdfTextRegex = /BT\s*\/\w+\s+\d+\s+Tf\s*[^)]*\)\s*Tj\s*ET|\/P\s*<<[^>]*>>\s*BDC[^E]*EMC/g;
+        const matches = text.match(pdfTextRegex);
+        
+        if (matches && matches.length > 0) {
+          extractedContent = matches.join(' ')
+            .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        } else {
+          extractedContent = text
+            .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+        
+        console.log('PDF extraction completed, content length:', extractedContent.length);
+        
+      } else if (fileType === 'txt') {
+        console.log('Processing TXT file...');
         extractedContent = await fileData.text();
-        console.log('Generic text extraction, length:', extractedContent.length);
+        console.log('TXT extraction completed, content length:', extractedContent.length);
+        
+      } else if (fileType === 'docx') {
+        console.log('Processing DOCX file...');
+        
+        try {
+          // DOCX files are ZIP archives containing XML files
+          const arrayBuffer = await fileData.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          
+          // Convert to string and try to extract readable content
+          const docxContent = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
+          
+          // Look for text content patterns in DOCX XML
+          const textMatches = docxContent.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
+          
+          if (textMatches && textMatches.length > 0) {
+            extractedContent = textMatches
+              .map(match => match.replace(/<w:t[^>]*>([^<]+)<\/w:t>/, '$1'))
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+          } else {
+            // Fallback: try to extract any readable text
+            extractedContent = docxContent
+              .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+          
+          console.log('DOCX extraction completed, content length:', extractedContent.length);
+          
+        } catch (docxError) {
+          console.error('DOCX extraction error:', docxError);
+          // Fallback to basic text extraction
+          extractedContent = await fileData.text();
+        }
+        
+      } else {
+        console.log('Processing as generic text file...');
+        extractedContent = await fileData.text();
+        console.log('Generic extraction completed, content length:', extractedContent.length);
       }
+      
     } catch (extractionError) {
-      console.error('Text extraction error:', extractionError);
-      // Fallback to basic text extraction
+      console.error('Primary extraction failed:', extractionError);
+      
+      // Fallback extraction
+      console.log('Attempting fallback extraction...');
       try {
         extractedContent = await fileData.text();
+        console.log('Fallback extraction succeeded, content length:', extractedContent.length);
       } catch (fallbackError) {
-        console.error('Fallback extraction failed:', fallbackError);
-        extractedContent = `Unable to extract text from ${document.name}. File type: ${fileType}`;
+        console.error('Fallback extraction also failed:', fallbackError);
+        extractedContent = `Content extraction failed for ${document.name}. File type: ${fileType}. Please check the file format and try again.`;
       }
     }
 
+    // Validate extracted content
     if (!extractedContent || extractedContent.length < 10) {
-      extractedContent = `Document ${document.name} was processed but no readable text content was found. This may be due to the file format or content structure.`;
+      console.warn('Extracted content is too short or empty');
+      extractedContent = `Document ${document.name} was processed but minimal readable content was extracted. This may be due to the file format, encoding, or content structure. File type: ${fileType}, File size: ${document.file_size} bytes.`;
     }
 
-    console.log('Final extracted content preview:', extractedContent.substring(0, 200));
+    console.log('=== EXTRACTED CONTENT PREVIEW ===');
+    console.log('Content length:', extractedContent.length);
+    console.log('First 500 characters:', extractedContent.substring(0, 500));
+    console.log('Last 200 characters:', extractedContent.substring(Math.max(0, extractedContent.length - 200)));
 
     // Create intelligent chunks from the content
+    console.log('=== CHUNKING START ===');
     const chunks = createIntelligentChunks(extractedContent, document.name);
     console.log('Created chunks:', chunks.length);
+
+    // Log first few chunks for debugging
+    chunks.slice(0, 3).forEach((chunk, index) => {
+      console.log(`Chunk ${index + 1} preview:`, chunk.substring(0, 200));
+    });
 
     const documentChunks = chunks.map((content, index) => ({
       document_id: documentId,
       chunk_index: index,
       content: content.trim(),
-      page_number: Math.floor(index / 3) + 1, // Rough page estimation
+      page_number: Math.floor(index / 3) + 1,
     }));
 
     // Insert chunks
     if (documentChunks.length > 0) {
+      console.log('Inserting', documentChunks.length, 'chunks into database...');
       const { error: chunksError } = await supabase
         .from('document_chunks')
         .insert(documentChunks);
@@ -120,6 +193,7 @@ serve(async (req) => {
         console.error('Error inserting chunks:', chunksError);
         throw chunksError;
       }
+      console.log('Chunks inserted successfully');
     }
 
     let aiSummary = null;
@@ -128,7 +202,7 @@ serve(async (req) => {
     // Generate AI summary if OpenAI is available
     if (openAIApiKey && extractedContent.length > 50) {
       try {
-        console.log('Generating AI summary...');
+        console.log('=== AI SUMMARY GENERATION START ===');
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -161,23 +235,26 @@ serve(async (req) => {
           
           if (summaryMatch) {
             aiSummary = summaryMatch[1].trim();
+            console.log('AI summary extracted:', aiSummary.substring(0, 100));
           }
           
           if (keywordsMatch) {
             keywords = keywordsMatch[1].split(',').map(k => k.trim()).filter(k => k.length > 0);
+            console.log('AI keywords extracted:', keywords);
           }
-          
-          console.log('Extracted summary:', aiSummary?.substring(0, 100));
-          console.log('Extracted keywords:', keywords);
+        } else {
+          console.error('AI API response not ok:', response.status, response.statusText);
         }
       } catch (aiError) {
         console.error('AI processing error:', aiError);
-        // Continue without AI enhancement
       }
+    } else {
+      console.log('Skipping AI summary - OpenAI key not available or content too short');
     }
 
     // Create content summary from extracted text
     const contentSummary = createContentSummary(extractedContent, documentChunks.length);
+    console.log('Content summary created:', contentSummary);
 
     // Update document with processing results
     const updateData: any = {
@@ -190,12 +267,19 @@ serve(async (req) => {
     if (aiSummary) updateData.ai_summary = aiSummary;
     if (keywords.length > 0) updateData.keywords = keywords;
 
+    console.log('Updating document with results...');
     await supabase
       .from('documents')
       .update(updateData)
       .eq('id', documentId);
 
-    console.log('Document processing completed successfully');
+    console.log('=== DOCUMENT PROCESSING COMPLETE ===');
+    console.log('Results:', {
+      chunksCreated: documentChunks.length,
+      aiEnhanced: !!aiSummary,
+      contentLength: extractedContent.length,
+      fileType: fileType
+    });
 
     return new Response(
       JSON.stringify({ 
@@ -203,13 +287,15 @@ serve(async (req) => {
         chunksCreated: documentChunks.length,
         aiEnhanced: !!aiSummary,
         contentLength: extractedContent.length,
-        fileType: fileType
+        fileType: fileType,
+        contentPreview: extractedContent.substring(0, 200)
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Document processing error:', error);
+    console.error('=== DOCUMENT PROCESSING ERROR ===');
+    console.error('Error details:', error);
     
     // Update document with error status
     if (supabaseUrl && supabaseServiceKey) {
@@ -293,7 +379,7 @@ function createContentSummary(extractedContent: string, chunkCount: number): str
   let summary = `Document contains ${wordCount} words across ${chunkCount} sections.`;
   
   if (hasEmail) {
-    summary += ` Contains ${hasEmail.length} email address(es).`;
+    summary += ` Contains ${hasEmail.length} email address(es): ${hasEmail.slice(0, 3).join(', ')}.`;
   }
   if (hasPhone) {
     summary += ` Contains ${hasPhone.length} phone number(s).`;
