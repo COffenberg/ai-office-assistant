@@ -37,9 +37,68 @@ export const useDocumentProcessing = () => {
     },
   });
 
+  const reprocessDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      console.log('Re-processing document:', documentId);
+      setProcessingStatus(prev => ({ ...prev, [documentId]: 'reprocessing' }));
+      
+      // First, clear existing chunks
+      const { error: deleteError } = await supabase
+        .from('document_chunks')
+        .delete()
+        .eq('document_id', documentId);
+
+      if (deleteError) {
+        console.error('Error clearing old chunks:', deleteError);
+        throw new Error('Failed to clear old document chunks');
+      }
+
+      // Reset document status
+      const { error: resetError } = await supabase
+        .from('documents')
+        .update({ 
+          processing_status: 'uploaded',
+          content_summary: null,
+          total_chunks: 0,
+          ai_summary: null,
+          keywords: null
+        })
+        .eq('id', documentId);
+
+      if (resetError) {
+        console.error('Error resetting document status:', resetError);
+        throw new Error('Failed to reset document status');
+      }
+
+      // Process with updated logic
+      const { data, error } = await supabase.functions.invoke('process-document', {
+        body: { documentId },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, documentId) => {
+      setProcessingStatus(prev => ({ ...prev, [documentId]: 'completed' }));
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['document-chunks'] });
+      
+      toast.success(
+        `Document re-processed successfully! ${data.aiEnhanced ? 'AI enhanced.' : ''} Content length: ${data.contentLength} characters`
+      );
+    },
+    onError: (error, documentId) => {
+      setProcessingStatus(prev => ({ ...prev, [documentId]: 'error' }));
+      console.error('Document re-processing error:', error);
+      toast.error(`Failed to re-process document: ${error.message}`);
+    },
+  });
+
   return {
     processDocument: processDocumentMutation.mutate,
+    reprocessDocument: reprocessDocumentMutation.mutate,
     isProcessing: processDocumentMutation.isPending,
+    isReprocessing: reprocessDocumentMutation.isPending,
     processingStatus,
   };
 };
