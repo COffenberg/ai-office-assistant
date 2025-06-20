@@ -16,7 +16,16 @@ export const useDocumentProcessing = () => {
         body: { documentId },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(`Processing failed: ${error.message}`);
+      }
+
+      if (!data.success) {
+        console.error('Processing failed:', data);
+        throw new Error(data.error || 'Processing failed with unknown error');
+      }
+
       return data;
     },
     onSuccess: (data, documentId) => {
@@ -24,11 +33,15 @@ export const useDocumentProcessing = () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['document-chunks'] });
       
-      toast.success(
-        data.aiEnhanced 
-          ? 'Document processed with AI enhancement!' 
-          : 'Document processed successfully!'
-      );
+      const message = data.aiEnhanced 
+        ? `Document processed with AI enhancement! Found ${data.contentLength} characters of content.`
+        : `Document processed successfully! Found ${data.contentLength} characters of content.`;
+      
+      toast.success(message);
+      
+      if (data.hasRelevantContent) {
+        toast.success('✅ Document contains relevant installation/email content!');
+      }
     },
     onError: (error, documentId) => {
       setProcessingStatus(prev => ({ ...prev, [documentId]: 'error' }));
@@ -75,7 +88,16 @@ export const useDocumentProcessing = () => {
         body: { documentId },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(`Re-processing failed: ${error.message}`);
+      }
+
+      if (!data.success) {
+        console.error('Re-processing failed:', data);
+        throw new Error(data.error || 'Re-processing failed with unknown error');
+      }
+
       return data;
     },
     onSuccess: (data, documentId) => {
@@ -83,9 +105,14 @@ export const useDocumentProcessing = () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['document-chunks'] });
       
-      toast.success(
-        `Document re-processed successfully! ${data.aiEnhanced ? 'AI enhanced.' : ''} Content length: ${data.contentLength} characters`
-      );
+      const message = `Document re-processed successfully! ${data.aiEnhanced ? 'AI enhanced. ' : ''}Content length: ${data.contentLength} characters`;
+      toast.success(message);
+      
+      if (data.hasRelevantContent) {
+        toast.success('✅ Document now contains relevant installation/email content!');
+      } else {
+        toast.warning('⚠️ Document processed but may not contain expected content');
+      }
     },
     onError: (error, documentId) => {
       setProcessingStatus(prev => ({ ...prev, [documentId]: 'error' }));

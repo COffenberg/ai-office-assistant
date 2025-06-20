@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3, Brain, AlertTriangle } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3, Brain, AlertTriangle, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
@@ -15,6 +14,7 @@ import { useQAPairs } from "@/hooks/useQAPairs";
 import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
 import AdminAnalytics from "./AdminAnalytics";
 import KnowledgeGapManager from "./KnowledgeGapManager";
+import DocumentProcessingTest from "./DocumentProcessingTest";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -152,7 +152,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs defaultValue="documents" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="documents" className="flex items-center space-x-2">
               <FileText className="w-4 h-4" />
               <span>Documents</span>
@@ -168,6 +168,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
             <TabsTrigger value="gaps" className="flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4" />
               <span>Knowledge Gaps</span>
+            </TabsTrigger>
+            <TabsTrigger value="debug" className="flex items-center space-x-2">
+              <Settings className="w-4 h-4" />
+              <span>Debug Tools</span>
             </TabsTrigger>
           </TabsList>
 
@@ -418,6 +422,10 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
           <TabsContent value="gaps" className="space-y-6">
             <KnowledgeGapManager />
+          </TabsContent>
+
+          <TabsContent value="debug" className="space-y-6">
+            <DocumentProcessingTest />
           </TabsContent>
         </Tabs>
       </div>

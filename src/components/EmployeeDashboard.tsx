@@ -9,8 +9,6 @@ import QuestionInput from "./dashboard/QuestionInput";
 import AnswerDisplay from "./dashboard/AnswerDisplay";
 import SuggestedQuestions from "./dashboard/SuggestedQuestions";
 import ChatHistory from "./dashboard/ChatHistory";
-import DocumentProcessingTest from "./DocumentProcessingTest";
-import { Button } from "@/components/ui/button";
 
 interface EmployeeDashboardProps {
   onBack: () => void;
@@ -31,7 +29,6 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [showTestPanel, setShowTestPanel] = useState(false);
 
   // Load suggested questions on mount
   useEffect(() => {
@@ -109,22 +106,6 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
       <EmployeeDashboardHeader onBack={onBack} onLogout={handleLogout} />
 
       <div className="container mx-auto px-6 py-8 max-w-4xl">
-        <div className="mb-4">
-          <Button 
-            onClick={() => setShowTestPanel(!showTestPanel)}
-            variant="outline"
-            size="sm"
-          >
-            {showTestPanel ? 'Hide' : 'Show'} Document Processing Test
-          </Button>
-        </div>
-
-        {showTestPanel && (
-          <div className="mb-6">
-            <DocumentProcessingTest />
-          </div>
-        )}
-
         <QuestionInput
           currentQuestion={currentQuestion}
           setCurrentQuestion={setCurrentQuestion}

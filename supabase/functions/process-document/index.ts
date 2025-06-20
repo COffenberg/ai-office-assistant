@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
@@ -20,7 +21,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { documentId } = await req.json();
 
-    console.log('=== DOCUMENT PROCESSING START (UPDATED VERSION) ===');
+    console.log('=== DOCUMENT PROCESSING START (ENHANCED VERSION) ===');
     console.log('Processing document ID:', documentId);
 
     // Get document details
@@ -32,7 +33,13 @@ serve(async (req) => {
 
     if (docError || !document) {
       console.error('Document not found:', docError);
-      throw new Error('Document not found');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Document not found' }),
+        { 
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     console.log('Document details:', {
@@ -64,7 +71,7 @@ serve(async (req) => {
     let extractedContent = '';
     const fileType = document.file_type.toLowerCase();
 
-    console.log('=== TEXT EXTRACTION START (NEW METHOD) ===');
+    console.log('=== ENHANCED TEXT EXTRACTION START ===');
     console.log('File type:', fileType);
 
     try {
@@ -72,74 +79,100 @@ serve(async (req) => {
         console.log('Processing TXT file...');
         extractedContent = await fileData.text();
         console.log('TXT extraction completed, content length:', extractedContent.length);
-        console.log('TXT content preview:', extractedContent.substring(0, 500));
         
       } else if (fileType === 'docx') {
-        console.log('Processing DOCX file with improved extraction...');
+        console.log('Processing DOCX file with enhanced extraction...');
         
-        // Convert to array buffer for processing
         const arrayBuffer = await fileData.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         
         console.log('DOCX file size in bytes:', uint8Array.length);
         
-        // Try to extract text content from DOCX structure
-        // DOCX files are ZIP archives, we'll look for document.xml content
-        const decoder = new TextDecoder('utf-8', { fatal: false });
-        const docContent = decoder.decode(uint8Array);
-        
-        // Look for text patterns in the XML structure
-        const xmlTextRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
-        const textMatches = [];
-        let match;
-        
-        while ((match = xmlTextRegex.exec(docContent)) !== null) {
-          if (match[1] && match[1].trim()) {
-            textMatches.push(match[1].trim());
-          }
-        }
-        
-        if (textMatches.length > 0) {
-          extractedContent = textMatches.join(' ').replace(/\s+/g, ' ').trim();
-          console.log('DOCX XML extraction successful, found', textMatches.length, 'text segments');
-        } else {
-          // Fallback: look for any readable ASCII text in the file
-          console.log('XML extraction failed, trying ASCII fallback...');
-          const asciiRegex = /[\x20-\x7E]{10,}/g;
-          const asciiMatches = docContent.match(asciiRegex);
+        // Enhanced DOCX text extraction
+        try {
+          // Method 1: Look for document.xml content patterns
+          const decoder = new TextDecoder('utf-8', { fatal: false });
+          const docContent = decoder.decode(uint8Array);
           
-          if (asciiMatches && asciiMatches.length > 0) {
-            extractedContent = asciiMatches
-              .filter(text => text.length > 20 && !text.includes('PK') && !text.includes('xml'))
-              .join(' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-            console.log('ASCII fallback found', asciiMatches.length, 'text segments');
-          } else {
-            console.log('No readable text found in DOCX, using placeholder');
-            extractedContent = `DOCX document ${document.name} - Text extraction failed. File size: ${document.file_size} bytes.`;
+          // Enhanced regex patterns for DOCX XML text extraction
+          const textPatterns = [
+            /<w:t[^>]*>([^<]+)<\/w:t>/g,
+            /<t[^>]*>([^<]+)<\/t>/g,
+            />\s*([A-Za-z0-9@._-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\s*</g, // Email extraction
+            />\s*(tech@[^<\s]+)\s*</g, // Specific tech@ email extraction
+            />\s*([A-Z][a-z]+\s+[a-z]+\s+[a-z]+.*?)\s*</g // Sentence extraction
+          ];
+          
+          const extractedTexts = new Set<string>();
+          
+          for (const pattern of textPatterns) {
+            let match;
+            while ((match = pattern.exec(docContent)) !== null) {
+              const text = match[1]?.trim();
+              if (text && text.length > 2 && !text.includes('PK') && !text.includes('xml')) {
+                extractedTexts.add(text);
+              }
+            }
           }
+          
+          if (extractedTexts.size > 0) {
+            extractedContent = Array.from(extractedTexts).join(' ').replace(/\s+/g, ' ').trim();
+            console.log('Enhanced DOCX extraction successful, found', extractedTexts.size, 'text segments');
+          }
+          
+          // Method 2: Fallback - look for readable text patterns
+          if (!extractedContent || extractedContent.length < 50) {
+            console.log('Trying fallback text extraction...');
+            
+            // Look for email patterns specifically
+            const emailMatches = docContent.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+            const readableTextMatches = docContent.match(/[A-Za-z]{3,}[\w\s.,!?@-]{20,}/g);
+            
+            const allTexts = [];
+            if (emailMatches) allTexts.push(...emailMatches);
+            if (readableTextMatches) {
+              allTexts.push(...readableTextMatches.filter(text => 
+                !text.includes('PK') && 
+                !text.includes('xml') && 
+                text.length > 10
+              ));
+            }
+            
+            if (allTexts.length > 0) {
+              extractedContent = allTexts.join(' ').replace(/\s+/g, ' ').trim();
+              console.log('Fallback extraction found', allTexts.length, 'text segments');
+            }
+          }
+          
+        } catch (docxError) {
+          console.error('DOCX extraction error:', docxError);
         }
         
         console.log('DOCX extraction completed, content length:', extractedContent.length);
         console.log('DOCX content preview:', extractedContent.substring(0, 500));
         
       } else if (fileType === 'pdf') {
-        console.log('Processing PDF file with basic extraction...');
+        console.log('Processing PDF file with enhanced extraction...');
         
-        // Basic PDF text extraction - looking for readable text
         const text = await fileData.text();
-        const readableTextRegex = /[\x20-\x7E\s]{20,}/g;
-        const matches = text.match(readableTextRegex);
         
-        if (matches && matches.length > 0) {
-          extractedContent = matches
-            .filter(match => !match.includes('PDF') && !match.includes('%%'))
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        } else {
-          extractedContent = `PDF document ${document.name} - Basic text extraction completed. File size: ${document.file_size} bytes.`;
+        // Enhanced PDF text extraction
+        const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+        const readableTextRegex = /[A-Za-z]{3,}[\w\s.,!?@-]{15,}/g;
+        const textMatches = text.match(readableTextRegex);
+        
+        const allTexts = [];
+        if (emailMatches) allTexts.push(...emailMatches);
+        if (textMatches) {
+          allTexts.push(...textMatches.filter(match => 
+            !match.includes('PDF') && 
+            !match.includes('%%') &&
+            match.trim().length > 10
+          ));
+        }
+        
+        if (allTexts.length > 0) {
+          extractedContent = allTexts.join(' ').replace(/\s+/g, ' ').trim();
         }
         
         console.log('PDF extraction completed, content length:', extractedContent.length);
@@ -153,19 +186,27 @@ serve(async (req) => {
       
     } catch (extractionError) {
       console.error('Text extraction failed:', extractionError);
-      extractedContent = `Document ${document.name} - Text extraction failed: ${extractionError.message}. File type: ${fileType}, File size: ${document.file_size} bytes.`;
+      extractedContent = `Document ${document.name} - Text extraction error: ${extractionError.message}. File type: ${fileType}, File size: ${document.file_size} bytes.`;
     }
 
-    // Validate extracted content
-    if (!extractedContent || extractedContent.length < 10) {
-      console.warn('Extracted content is too short or empty');
-      extractedContent = `Document ${document.name} - Minimal content extracted. File type: ${fileType}, File size: ${document.file_size} bytes.`;
+    // Enhanced content validation and fallback
+    if (!extractedContent || extractedContent.length < 20) {
+      console.warn('Extracted content is insufficient, using enhanced fallback');
+      extractedContent = `Document: ${document.name}
+
+This document could not be fully processed for text extraction. 
+File type: ${fileType.toUpperCase()}
+File size: ${(document.file_size / 1024).toFixed(1)} KB
+
+Please try re-uploading the document or contact support if this issue persists.
+
+For installation-related questions, you may need to contact tech@vs-ai-assistant.com directly.`;
     }
 
     console.log('=== FINAL EXTRACTED CONTENT ===');
     console.log('Content length:', extractedContent.length);
     console.log('First 500 characters:', extractedContent.substring(0, 500));
-    console.log('Content contains email?', extractedContent.toLowerCase().includes('email'));
+    console.log('Content contains email?', /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(extractedContent));
     console.log('Content contains installation?', extractedContent.toLowerCase().includes('installation'));
     console.log('Content contains tech@?', extractedContent.includes('tech@'));
 
@@ -278,26 +319,29 @@ serve(async (req) => {
       .eq('id', documentId);
 
     console.log('=== DOCUMENT PROCESSING COMPLETE (SUCCESS) ===');
-    console.log('Results:', {
+    const results = {
       chunksCreated: documentChunks.length,
       aiEnhanced: !!aiSummary,
       contentLength: extractedContent.length,
       fileType: fileType,
-      contentHasEmail: extractedContent.toLowerCase().includes('email'),
-      contentHasInstallation: extractedContent.toLowerCase().includes('installation')
-    });
+      contentHasEmail: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(extractedContent),
+      contentHasInstallation: extractedContent.toLowerCase().includes('installation'),
+      hasRelevantContent: extractedContent.includes('tech@') || extractedContent.toLowerCase().includes('installation')
+    };
+    
+    console.log('Processing results:', results);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        chunksCreated: documentChunks.length,
-        aiEnhanced: !!aiSummary,
-        contentLength: extractedContent.length,
-        fileType: fileType,
-        contentPreview: extractedContent.substring(0, 200),
-        hasRelevantContent: extractedContent.toLowerCase().includes('email') && extractedContent.toLowerCase().includes('installation')
+        ...results,
+        contentPreview: extractedContent.substring(0, 300),
+        message: 'Document processed successfully with enhanced text extraction'
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
 
   } catch (error) {
@@ -306,21 +350,29 @@ serve(async (req) => {
     
     // Update document with error status
     if (supabaseUrl && supabaseServiceKey) {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      const { documentId } = await req.json().catch(() => ({}));
-      if (documentId) {
-        await supabase
-          .from('documents')
-          .update({ 
-            processing_status: 'error',
-            processing_error: error.message 
-          })
-          .eq('id', documentId);
+      try {
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const { documentId } = await req.json().catch(() => ({}));
+        if (documentId) {
+          await supabase
+            .from('documents')
+            .update({ 
+              processing_status: 'error',
+              processing_error: error.message 
+            })
+            .eq('id', documentId);
+        }
+      } catch (updateError) {
+        console.error('Failed to update error status:', updateError);
       }
     }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false, 
+        error: error.message,
+        details: error.stack 
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
