@@ -1,50 +1,38 @@
 
 import { useState } from 'react';
-import { useDocuments } from '@/hooks/useDocuments';
-import { useDocumentProcessing } from '@/hooks/useDocumentProcessing';
-import { useDocumentChunks } from '@/hooks/useDocumentChunks';
-import { useKnowledgeBase } from '@/hooks/useKnowledgeBase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { AlertCircle, CheckCircle2, FileText, Search, MessageSquare, RefreshCw } from 'lucide-react';
+import { useDocuments } from '@/hooks/useDocuments';
+import { useDocumentProcessing } from '@/hooks/useDocumentProcessing';
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const DocumentProcessingTest = () => {
   const { documents } = useDocuments();
-  const { reprocessDocument, isReprocessing, processingStatus } = useDocumentProcessing();
-  const { generateAnswer } = useKnowledgeBase();
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
-  const [testQuestion, setTestQuestion] = useState('What email should the installation report be sent to?');
-  const [testResult, setTestResult] = useState<any>(null);
-  const [isTestingAnswer, setIsTestingAnswer] = useState(false);
-  const [isClearingChunks, setIsClearingChunks] = useState(false);
+  const { reprocessDocument, processingStatus } = useDocumentProcessing();
+  const { searchKnowledgeBase, generateAnswer } = useKnowledgeBase();
   
-  const { chunks } = useDocumentChunks(selectedDocumentId);
+  const [selectedDocId, setSelectedDocId] = useState<string>('');
+  const [testResults, setTestResults] = useState<any>(null);
+  const [isRunningFullTest, setIsRunningFullTest] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('What email should the installation report be sent to?');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [generatedAnswer, setGeneratedAnswer] = useState<string>('');
 
-  const handleClearCorruptedChunks = async () => {
-    if (!selectedDocumentId) {
-      toast.error('Please select a document first');
-      return;
-    }
-    
-    setIsClearingChunks(true);
+  const clearDocumentChunks = async (documentId: string) => {
     try {
-      console.log('Clearing corrupted chunks for document:', selectedDocumentId);
-      
-      // Delete all existing chunks for this document
-      const { error: deleteError } = await supabase
+      const { error } = await supabase
         .from('document_chunks')
         .delete()
-        .eq('document_id', selectedDocumentId);
+        .eq('document_id', documentId);
 
-      if (deleteError) {
-        console.error('Error clearing chunks:', deleteError);
-        throw new Error('Failed to clear document chunks');
-      }
+      if (error) throw error;
 
-      // Reset document processing status
+      // Reset document status
       const { error: resetError } = await supabase
         .from('documents')
         .update({ 
@@ -52,153 +40,273 @@ const DocumentProcessingTest = () => {
           content_summary: null,
           total_chunks: 0,
           ai_summary: null,
-          keywords: null
+          keywords: null,
+          processing_error: null
         })
-        .eq('id', selectedDocumentId);
+        .eq('id', documentId);
 
-      if (resetError) {
-        console.error('Error resetting document:', resetError);
-        throw new Error('Failed to reset document status');
-      }
+      if (resetError) throw resetError;
 
-      toast.success('Corrupted chunks cleared! Now re-process the document.');
-      
+      toast.success('Document chunks cleared successfully');
     } catch (error) {
-      console.error('Clear chunks error:', error);
-      toast.error(`Failed to clear chunks: ${error.message}`);
-    } finally {
-      setIsClearingChunks(false);
+      console.error('Error clearing chunks:', error);
+      toast.error('Failed to clear document chunks');
     }
   };
 
-  const handleReprocessDocument = async () => {
-    if (!selectedDocumentId) {
+  const runFullPipelineTest = async () => {
+    if (!selectedDocId) {
       toast.error('Please select a document first');
       return;
     }
-    
-    console.log('Starting document re-processing with updated function');
-    reprocessDocument(selectedDocumentId);
-  };
 
-  const handleTestAnswer = async () => {
-    if (!testQuestion.trim()) {
-      toast.error('Please enter a test question');
-      return;
-    }
+    setIsRunningFullTest(true);
+    setTestResults(null);
+    setSearchResults([]);
+    setGeneratedAnswer('');
 
-    setIsTestingAnswer(true);
-    setTestResult(null);
-    
     try {
-      console.log('Testing answer generation for:', testQuestion);
-      const result = await generateAnswer(testQuestion);
-      console.log('Answer generation result:', result);
-      setTestResult(result);
+      console.log('=== STARTING FULL PIPELINE TEST ===');
       
-      if (result.answer.includes('tech@vs-ai-assistant.com') || 
-          result.answer.toLowerCase().includes('installation report')) {
-        toast.success('Test passed! Found relevant content.');
-      } else {
-        toast.warning('Test may have issues - check the answer content.');
-      }
+      // Step 1: Clear existing chunks
+      console.log('Step 1: Clearing existing chunks...');
+      await clearDocumentChunks(selectedDocId);
+
+      // Step 2: Re-process document
+      console.log('Step 2: Re-processing document...');
+      reprocessDocument(selectedDocId);
+
+      // Wait a bit for processing to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Step 3: Test search
+      console.log('Step 3: Testing search...');
+      const searchResults = await searchKnowledgeBase(searchQuery);
+      setSearchResults(searchResults);
+      console.log('Search results:', searchResults);
+
+      // Step 4: Generate answer
+      console.log('Step 4: Generating answer...');
+      const answerResult = await generateAnswer(searchQuery);
+      setGeneratedAnswer(answerResult.answer);
+      console.log('Generated answer:', answerResult.answer);
+
+      // Step 5: Analyze results
+      const hasRelevantResults = searchResults.some(result => 
+        result.answer.toLowerCase().includes('tech@') || 
+        result.answer.toLowerCase().includes('email')
+      );
+
+      const answerContainsEmail = answerResult.answer.toLowerCase().includes('tech@vs-ai-assistant.com');
+
+      setTestResults({
+        searchResultsCount: searchResults.length,
+        hasRelevantResults,
+        answerContainsEmail,
+        success: hasRelevantResults && answerContainsEmail
+      });
+
+      console.log('=== FULL PIPELINE TEST COMPLETE ===');
+      console.log('Results:', {
+        searchResultsCount: searchResults.length,
+        hasRelevantResults,
+        answerContainsEmail
+      });
+
     } catch (error) {
-      console.error('Answer generation test failed:', error);
-      toast.error('Answer generation test failed');
-      setTestResult({ error: error.message });
+      console.error('Full pipeline test error:', error);
+      toast.error('Full pipeline test failed');
+      setTestResults({ error: error.message });
     } finally {
-      setIsTestingAnswer(false);
+      setIsRunningFullTest(false);
     }
   };
 
-  const selectedDocument = documents.find(doc => doc.id === selectedDocumentId);
+  const testSearch = async () => {
+    try {
+      console.log('Testing search with query:', searchQuery);
+      const results = await searchKnowledgeBase(searchQuery);
+      setSearchResults(results);
+      console.log('Search results:', results);
+      toast.success(`Found ${results.length} search results`);
+    } catch (error) {
+      console.error('Search test error:', error);
+      toast.error('Search test failed');
+    }
+  };
+
+  const testAnswerGeneration = async () => {
+    try {
+      console.log('Testing answer generation with query:', searchQuery);
+      const result = await generateAnswer(searchQuery);
+      setGeneratedAnswer(result.answer);
+      console.log('Generated answer:', result.answer);
+      toast.success('Answer generated successfully');
+    } catch (error) {
+      console.error('Answer generation test error:', error);
+      toast.error('Answer generation test failed');
+    }
+  };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Document Processing Test (Updated Function)</CardTitle>
+          <CardTitle className="flex items-center space-x-2">
+            <FileText className="w-5 h-5" />
+            <span>Document Processing Debug Tools</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Document Selection */}
           <div>
-            <label className="text-sm font-medium">Select Document to Test:</label>
+            <label className="block text-sm font-medium mb-2">Select Document for Testing</label>
             <select
-              value={selectedDocumentId}
-              onChange={(e) => setSelectedDocumentId(e.target.value)}
-              className="w-full mt-1 p-2 border rounded-md"
+              value={selectedDocId}
+              onChange={(e) => setSelectedDocId(e.target.value)}
+              className="w-full p-2 border rounded-md"
             >
               <option value="">Choose a document...</option>
-              {documents.map(doc => (
+              {documents.map((doc) => (
                 <option key={doc.id} value={doc.id}>
-                  {doc.name} - {doc.processing_status}
+                  {doc.name} ({doc.file_type}) - {doc.processing_status}
                 </option>
               ))}
             </select>
           </div>
 
-          {selectedDocument && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Status:</span>
-                <Badge variant={selectedDocument.processing_status === 'processed' ? 'default' : 'secondary'}>
-                  {selectedDocument.processing_status}
-                </Badge>
-                {processingStatus[selectedDocumentId] && (
-                  <Badge variant="outline">{processingStatus[selectedDocumentId]}</Badge>
-                )}
+          {/* Quick Actions */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => selectedDocId && clearDocumentChunks(selectedDocId)}
+              disabled={!selectedDocId}
+              variant="outline"
+            >
+              Clear Corrupted Chunks
+            </Button>
+            
+            <Button
+              onClick={() => selectedDocId && reprocessDocument(selectedDocId)}
+              disabled={!selectedDocId || processingStatus[selectedDocId] === 'reprocessing'}
+              variant="outline"
+            >
+              {processingStatus[selectedDocId] === 'reprocessing' ? 'Re-processing...' : 'Re-process with Updated Function'}
+            </Button>
+          </div>
+
+          {/* Full Pipeline Test */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Full Pipeline Test</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-2">Test Query</label>
+                <Textarea
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter your test question..."
+                  rows={2}
+                />
               </div>
               
-              <div className="text-sm text-gray-600">
-                <p>File: {selectedDocument.name}</p>
-                <p>Size: {(selectedDocument.file_size / 1024).toFixed(1)} KB</p>
-                <p>Chunks: {selectedDocument.total_chunks || 0}</p>
-                {selectedDocument.content_summary && (
-                  <p>Summary: {selectedDocument.content_summary}</p>
+              <Button
+                onClick={runFullPipelineTest}
+                disabled={!selectedDocId || isRunningFullTest}
+                className="w-full"
+              >
+                {isRunningFullTest ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Running Full Pipeline Test...
+                  </>
+                ) : (
+                  'Run Complete Pipeline Test'
                 )}
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleClearCorruptedChunks}
-                  disabled={isClearingChunks}
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  {isClearingChunks ? 'Clearing...' : 'Clear Corrupted Chunks'}
-                </Button>
-                
-                <Button 
-                  onClick={handleReprocessDocument}
-                  disabled={isReprocessing}
-                  className="flex-1"
-                >
-                  {isReprocessing ? 'Re-processing...' : 'Re-process with Updated Function'}
-                </Button>
-              </div>
+              </Button>
             </div>
-          )}
+          </div>
+
+          {/* Individual Tests */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Individual Component Tests</h3>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={testSearch} variant="outline" size="sm">
+                <Search className="w-4 h-4 mr-2" />
+                Test Search Only
+              </Button>
+              
+              <Button onClick={testAnswerGeneration} variant="outline" size="sm">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Test Answer Generation
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {selectedDocumentId && chunks.length > 0 && (
+      {/* Test Results */}
+      {testResults && (
         <Card>
           <CardHeader>
-            <CardTitle>Document Chunks ({chunks.length})</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              {testResults.success ? (
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-500" />
+              )}
+              <span>Pipeline Test Results</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {chunks.map((chunk, index) => (
-                <div key={chunk.id} className="p-2 border rounded text-sm">
-                  <div className="font-medium">Chunk {index + 1}:</div>
-                  <div className="text-gray-600">
-                    {chunk.content.length > 100 ? 
-                      `${chunk.content.substring(0, 100)}...` : 
-                      chunk.content
-                    }
+            {testResults.error ? (
+              <div className="text-red-600">Error: {testResults.error}</div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Badge variant={testResults.searchResultsCount > 0 ? "default" : "destructive"}>
+                    Search Results: {testResults.searchResultsCount}
+                  </Badge>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={testResults.hasRelevantResults ? "default" : "destructive"}>
+                    Has Relevant Results: {testResults.hasRelevantResults ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={testResults.answerContainsEmail ? "default" : "destructive"}>
+                    Answer Contains Email: {testResults.answerContainsEmail ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={testResults.success ? "default" : "destructive"}>
+                    Overall: {testResults.success ? 'SUCCESS' : 'FAILED'}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search Results */}
+      {searchResults.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Search Results ({searchResults.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {searchResults.map((result, index) => (
+                <div key={index} className="p-3 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant="outline">{result.type}</Badge>
+                    <span className="text-sm text-gray-500">Score: {result.relevanceScore?.toFixed(2)}</span>
                   </div>
-                  {chunk.content.includes('PK') && (
-                    <div className="text-red-500 text-xs mt-1">⚠️ This chunk contains binary data (corrupted)</div>
-                  )}
+                  <div className="text-sm">
+                    <strong>Source:</strong> {result.source}
+                  </div>
+                  <div className="text-sm mt-2">
+                    <strong>Content:</strong> {result.answer?.substring(0, 200)}...
+                  </div>
                 </div>
               ))}
             </div>
@@ -206,56 +314,19 @@ const DocumentProcessingTest = () => {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Answer Generation Test</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Test Question:</label>
-            <Input
-              value={testQuestion}
-              onChange={(e) => setTestQuestion(e.target.value)}
-              placeholder="Enter your test question..."
-              className="mt-1"
-            />
-          </div>
-
-          <Button 
-            onClick={handleTestAnswer}
-            disabled={isTestingAnswer}
-            className="w-full"
-          >
-            {isTestingAnswer ? 'Generating Answer...' : 'Test Answer Generation'}
-          </Button>
-
-          {testResult && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Test Result:</div>
-              <div className="p-3 border rounded bg-gray-50">
-                {testResult.error ? (
-                  <div className="text-red-600">Error: {testResult.error}</div>
-                ) : (
-                  <div>
-                    <div className="font-medium">Answer:</div>
-                    <div className="mt-1">{testResult.answer}</div>
-                    {testResult.source && (
-                      <div className="mt-2 text-sm text-gray-600">
-                        Source: {testResult.source}
-                      </div>
-                    )}
-                    {testResult.searchResults && testResult.searchResults.length > 0 && (
-                      <div className="mt-2 text-sm text-gray-600">
-                        Found {testResult.searchResults.length} search results
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+      {/* Generated Answer */}
+      {generatedAnswer && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Generated Answer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              {generatedAnswer}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
