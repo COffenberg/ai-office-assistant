@@ -7,9 +7,9 @@ import { useKnowledgeBase } from '@/hooks/useKnowledgeBase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const DocumentProcessingTest = () => {
   const { documents } = useDocuments();
@@ -19,8 +19,57 @@ const DocumentProcessingTest = () => {
   const [testQuestion, setTestQuestion] = useState('What email should the installation report be sent to?');
   const [testResult, setTestResult] = useState<any>(null);
   const [isTestingAnswer, setIsTestingAnswer] = useState(false);
+  const [isClearingChunks, setIsClearingChunks] = useState(false);
   
   const { chunks } = useDocumentChunks(selectedDocumentId);
+
+  const handleClearCorruptedChunks = async () => {
+    if (!selectedDocumentId) {
+      toast.error('Please select a document first');
+      return;
+    }
+    
+    setIsClearingChunks(true);
+    try {
+      console.log('Clearing corrupted chunks for document:', selectedDocumentId);
+      
+      // Delete all existing chunks for this document
+      const { error: deleteError } = await supabase
+        .from('document_chunks')
+        .delete()
+        .eq('document_id', selectedDocumentId);
+
+      if (deleteError) {
+        console.error('Error clearing chunks:', deleteError);
+        throw new Error('Failed to clear document chunks');
+      }
+
+      // Reset document processing status
+      const { error: resetError } = await supabase
+        .from('documents')
+        .update({ 
+          processing_status: 'uploaded',
+          content_summary: null,
+          total_chunks: 0,
+          ai_summary: null,
+          keywords: null
+        })
+        .eq('id', selectedDocumentId);
+
+      if (resetError) {
+        console.error('Error resetting document:', resetError);
+        throw new Error('Failed to reset document status');
+      }
+
+      toast.success('Corrupted chunks cleared! Now re-process the document.');
+      
+    } catch (error) {
+      console.error('Clear chunks error:', error);
+      toast.error(`Failed to clear chunks: ${error.message}`);
+    } finally {
+      setIsClearingChunks(false);
+    }
+  };
 
   const handleReprocessDocument = async () => {
     if (!selectedDocumentId) {
@@ -28,7 +77,7 @@ const DocumentProcessingTest = () => {
       return;
     }
     
-    console.log('Starting document re-processing test');
+    console.log('Starting document re-processing with updated function');
     reprocessDocument(selectedDocumentId);
   };
 
@@ -68,7 +117,7 @@ const DocumentProcessingTest = () => {
     <div className="p-6 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Document Processing Test</CardTitle>
+          <CardTitle>Document Processing Test (Updated Function)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -108,13 +157,24 @@ const DocumentProcessingTest = () => {
                 )}
               </div>
 
-              <Button 
-                onClick={handleReprocessDocument}
-                disabled={isReprocessing}
-                className="w-full"
-              >
-                {isReprocessing ? 'Re-processing...' : 'Re-process Document'}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleClearCorruptedChunks}
+                  disabled={isClearingChunks}
+                  variant="destructive"
+                  className="flex-1"
+                >
+                  {isClearingChunks ? 'Clearing...' : 'Clear Corrupted Chunks'}
+                </Button>
+                
+                <Button 
+                  onClick={handleReprocessDocument}
+                  disabled={isReprocessing}
+                  className="flex-1"
+                >
+                  {isReprocessing ? 'Re-processing...' : 'Re-process with Updated Function'}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -130,7 +190,15 @@ const DocumentProcessingTest = () => {
               {chunks.map((chunk, index) => (
                 <div key={chunk.id} className="p-2 border rounded text-sm">
                   <div className="font-medium">Chunk {index + 1}:</div>
-                  <div className="text-gray-600 truncate">{chunk.content.substring(0, 200)}...</div>
+                  <div className="text-gray-600">
+                    {chunk.content.length > 100 ? 
+                      `${chunk.content.substring(0, 100)}...` : 
+                      chunk.content
+                    }
+                  </div>
+                  {chunk.content.includes('PK') && (
+                    <div className="text-red-500 text-xs mt-1">⚠️ This chunk contains binary data (corrupted)</div>
+                  )}
                 </div>
               ))}
             </div>

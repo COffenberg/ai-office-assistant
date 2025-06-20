@@ -20,7 +20,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { documentId } = await req.json();
 
-    console.log('=== DOCUMENT PROCESSING START ===');
+    console.log('=== DOCUMENT PROCESSING START (UPDATED VERSION) ===');
     console.log('Processing document ID:', documentId);
 
     // Get document details
@@ -64,75 +64,86 @@ serve(async (req) => {
     let extractedContent = '';
     const fileType = document.file_type.toLowerCase();
 
-    console.log('=== TEXT EXTRACTION START ===');
+    console.log('=== TEXT EXTRACTION START (NEW METHOD) ===');
     console.log('File type:', fileType);
 
     try {
-      if (fileType === 'pdf') {
-        console.log('Processing PDF file...');
-        // For now, we'll use a simple approach for PDFs
-        // In production, you might want to use a more sophisticated PDF parser
-        const arrayBuffer = await fileData.arrayBuffer();
-        const text = new TextDecoder().decode(arrayBuffer);
-        
-        // Try to extract readable text from PDF
-        const pdfTextRegex = /BT\s*\/\w+\s+\d+\s+Tf\s*[^)]*\)\s*Tj\s*ET|\/P\s*<<[^>]*>>\s*BDC[^E]*EMC/g;
-        const matches = text.match(pdfTextRegex);
-        
-        if (matches && matches.length > 0) {
-          extractedContent = matches.join(' ')
-            .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        } else {
-          extractedContent = text
-            .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        }
-        
-        console.log('PDF extraction completed, content length:', extractedContent.length);
-        
-      } else if (fileType === 'txt') {
+      if (fileType === 'txt') {
         console.log('Processing TXT file...');
         extractedContent = await fileData.text();
         console.log('TXT extraction completed, content length:', extractedContent.length);
+        console.log('TXT content preview:', extractedContent.substring(0, 500));
         
       } else if (fileType === 'docx') {
-        console.log('Processing DOCX file...');
+        console.log('Processing DOCX file with improved extraction...');
         
-        try {
-          // DOCX files are ZIP archives containing XML files
-          const arrayBuffer = await fileData.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
+        // Convert to array buffer for processing
+        const arrayBuffer = await fileData.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        console.log('DOCX file size in bytes:', uint8Array.length);
+        
+        // Try to extract text content from DOCX structure
+        // DOCX files are ZIP archives, we'll look for document.xml content
+        const decoder = new TextDecoder('utf-8', { fatal: false });
+        const docContent = decoder.decode(uint8Array);
+        
+        // Look for text patterns in the XML structure
+        const xmlTextRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
+        const textMatches = [];
+        let match;
+        
+        while ((match = xmlTextRegex.exec(docContent)) !== null) {
+          if (match[1] && match[1].trim()) {
+            textMatches.push(match[1].trim());
+          }
+        }
+        
+        if (textMatches.length > 0) {
+          extractedContent = textMatches.join(' ').replace(/\s+/g, ' ').trim();
+          console.log('DOCX XML extraction successful, found', textMatches.length, 'text segments');
+        } else {
+          // Fallback: look for any readable ASCII text in the file
+          console.log('XML extraction failed, trying ASCII fallback...');
+          const asciiRegex = /[\x20-\x7E]{10,}/g;
+          const asciiMatches = docContent.match(asciiRegex);
           
-          // Convert to string and try to extract readable content
-          const docxContent = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
-          
-          // Look for text content patterns in DOCX XML
-          const textMatches = docxContent.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
-          
-          if (textMatches && textMatches.length > 0) {
-            extractedContent = textMatches
-              .map(match => match.replace(/<w:t[^>]*>([^<]+)<\/w:t>/, '$1'))
+          if (asciiMatches && asciiMatches.length > 0) {
+            extractedContent = asciiMatches
+              .filter(text => text.length > 20 && !text.includes('PK') && !text.includes('xml'))
               .join(' ')
               .replace(/\s+/g, ' ')
               .trim();
+            console.log('ASCII fallback found', asciiMatches.length, 'text segments');
           } else {
-            // Fallback: try to extract any readable text
-            extractedContent = docxContent
-              .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
+            console.log('No readable text found in DOCX, using placeholder');
+            extractedContent = `DOCX document ${document.name} - Text extraction failed. File size: ${document.file_size} bytes.`;
           }
-          
-          console.log('DOCX extraction completed, content length:', extractedContent.length);
-          
-        } catch (docxError) {
-          console.error('DOCX extraction error:', docxError);
-          // Fallback to basic text extraction
-          extractedContent = await fileData.text();
         }
+        
+        console.log('DOCX extraction completed, content length:', extractedContent.length);
+        console.log('DOCX content preview:', extractedContent.substring(0, 500));
+        
+      } else if (fileType === 'pdf') {
+        console.log('Processing PDF file with basic extraction...');
+        
+        // Basic PDF text extraction - looking for readable text
+        const text = await fileData.text();
+        const readableTextRegex = /[\x20-\x7E\s]{20,}/g;
+        const matches = text.match(readableTextRegex);
+        
+        if (matches && matches.length > 0) {
+          extractedContent = matches
+            .filter(match => !match.includes('PDF') && !match.includes('%%'))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        } else {
+          extractedContent = `PDF document ${document.name} - Basic text extraction completed. File size: ${document.file_size} bytes.`;
+        }
+        
+        console.log('PDF extraction completed, content length:', extractedContent.length);
+        console.log('PDF content preview:', extractedContent.substring(0, 500));
         
       } else {
         console.log('Processing as generic text file...');
@@ -141,38 +152,31 @@ serve(async (req) => {
       }
       
     } catch (extractionError) {
-      console.error('Primary extraction failed:', extractionError);
-      
-      // Fallback extraction
-      console.log('Attempting fallback extraction...');
-      try {
-        extractedContent = await fileData.text();
-        console.log('Fallback extraction succeeded, content length:', extractedContent.length);
-      } catch (fallbackError) {
-        console.error('Fallback extraction also failed:', fallbackError);
-        extractedContent = `Content extraction failed for ${document.name}. File type: ${fileType}. Please check the file format and try again.`;
-      }
+      console.error('Text extraction failed:', extractionError);
+      extractedContent = `Document ${document.name} - Text extraction failed: ${extractionError.message}. File type: ${fileType}, File size: ${document.file_size} bytes.`;
     }
 
     // Validate extracted content
     if (!extractedContent || extractedContent.length < 10) {
       console.warn('Extracted content is too short or empty');
-      extractedContent = `Document ${document.name} was processed but minimal readable content was extracted. This may be due to the file format, encoding, or content structure. File type: ${fileType}, File size: ${document.file_size} bytes.`;
+      extractedContent = `Document ${document.name} - Minimal content extracted. File type: ${fileType}, File size: ${document.file_size} bytes.`;
     }
 
-    console.log('=== EXTRACTED CONTENT PREVIEW ===');
+    console.log('=== FINAL EXTRACTED CONTENT ===');
     console.log('Content length:', extractedContent.length);
     console.log('First 500 characters:', extractedContent.substring(0, 500));
-    console.log('Last 200 characters:', extractedContent.substring(Math.max(0, extractedContent.length - 200)));
+    console.log('Content contains email?', extractedContent.toLowerCase().includes('email'));
+    console.log('Content contains installation?', extractedContent.toLowerCase().includes('installation'));
+    console.log('Content contains tech@?', extractedContent.includes('tech@'));
 
     // Create intelligent chunks from the content
     console.log('=== CHUNKING START ===');
     const chunks = createIntelligentChunks(extractedContent, document.name);
     console.log('Created chunks:', chunks.length);
 
-    // Log first few chunks for debugging
-    chunks.slice(0, 3).forEach((chunk, index) => {
-      console.log(`Chunk ${index + 1} preview:`, chunk.substring(0, 200));
+    // Log all chunks for debugging
+    chunks.forEach((chunk, index) => {
+      console.log(`Chunk ${index + 1} (${chunk.length} chars):`, chunk.substring(0, 200));
     });
 
     const documentChunks = chunks.map((content, index) => ({
@@ -273,12 +277,14 @@ serve(async (req) => {
       .update(updateData)
       .eq('id', documentId);
 
-    console.log('=== DOCUMENT PROCESSING COMPLETE ===');
+    console.log('=== DOCUMENT PROCESSING COMPLETE (SUCCESS) ===');
     console.log('Results:', {
       chunksCreated: documentChunks.length,
       aiEnhanced: !!aiSummary,
       contentLength: extractedContent.length,
-      fileType: fileType
+      fileType: fileType,
+      contentHasEmail: extractedContent.toLowerCase().includes('email'),
+      contentHasInstallation: extractedContent.toLowerCase().includes('installation')
     });
 
     return new Response(
@@ -288,7 +294,8 @@ serve(async (req) => {
         aiEnhanced: !!aiSummary,
         contentLength: extractedContent.length,
         fileType: fileType,
-        contentPreview: extractedContent.substring(0, 200)
+        contentPreview: extractedContent.substring(0, 200),
+        hasRelevantContent: extractedContent.toLowerCase().includes('email') && extractedContent.toLowerCase().includes('installation')
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -324,13 +331,12 @@ serve(async (req) => {
 
 // Helper function to create intelligent chunks
 function createIntelligentChunks(text: string, fileName: string): string[] {
-  if (!text || text.length < 50) {
+  if (!text || text.length < 10) {
     return [`Document: ${fileName}\n\nNo readable content could be extracted from this document.`];
   }
 
   const chunks: string[] = [];
   const maxChunkSize = 1000;
-  const overlapSize = 100;
 
   // Split by paragraphs first, then by sentences if needed
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
