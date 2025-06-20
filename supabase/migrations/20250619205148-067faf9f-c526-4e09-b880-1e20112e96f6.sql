@@ -130,7 +130,7 @@ BEGIN
 END;
 $$;
 
--- Create function for enhanced search across Q&A pairs and documents
+-- Enhanced search function that properly handles document content
 CREATE OR REPLACE FUNCTION public.enhanced_search(
   search_query TEXT,
   limit_results INTEGER DEFAULT 10
@@ -148,7 +148,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
-  -- Search Q&A pairs
+  -- Search Q&A pairs with better scoring
   SELECT 
     'qa_pair'::TEXT as result_type,
     qa.id as result_id,
@@ -160,6 +160,7 @@ BEGIN
         WHEN qa.question ILIKE '%' || search_query || '%' THEN 1.0
         WHEN qa.answer ILIKE '%' || search_query || '%' THEN 0.8
         WHEN qa.category ILIKE '%' || search_query || '%' THEN 0.6
+        WHEN search_query = ANY(qa.tags) THEN 0.7
         ELSE 0.3
       END
     ) as relevance_score
@@ -174,18 +175,23 @@ BEGIN
   
   UNION ALL
   
-  -- Search document chunks
+  -- Search document chunks with enhanced scoring
   SELECT 
     'document'::TEXT as result_type,
     d.id as result_id,
     d.name as title,
     dc.content as content,
-    CONCAT('Document - ', d.name) as source,
+    CONCAT('Document - ', d.name, ' (Page ', COALESCE(dc.page_number, 1), ')') as source,
     (
       CASE 
         WHEN d.name ILIKE '%' || search_query || '%' THEN 1.0
-        WHEN dc.content ILIKE '%' || search_query || '%' THEN 0.9
+        WHEN dc.content ILIKE '%' || search_query || '%' THEN 
+          CASE 
+            WHEN dc.content ~* ('\\m' || search_query || '\\M') THEN 0.95  -- Word boundary match
+            ELSE 0.85  -- Substring match
+          END
         WHEN d.content_summary ILIKE '%' || search_query || '%' THEN 0.7
+        WHEN d.ai_summary ILIKE '%' || search_query || '%' THEN 0.75
         WHEN search_query = ANY(d.keywords) THEN 0.8
         ELSE 0.4
       END
@@ -197,6 +203,7 @@ BEGIN
       d.name ILIKE '%' || search_query || '%' OR
       dc.content ILIKE '%' || search_query || '%' OR
       d.content_summary ILIKE '%' || search_query || '%' OR
+      d.ai_summary ILIKE '%' || search_query || '%' OR
       search_query = ANY(d.keywords)
     )
   
@@ -204,3 +211,8 @@ BEGIN
   LIMIT limit_results;
 END;
 $$;
+
+-- Create index for better search performance
+CREATE INDEX IF NOT EXISTS idx_document_chunks_content_gin ON public.document_chunks USING gin(to_tsvector('english', content));
+CREATE INDEX IF NOT EXISTS idx_documents_name_gin ON public.documents USING gin(to_tsvector('english', name));
+CREATE INDEX IF NOT EXISTS idx_qa_pairs_search_gin ON public.qa_pairs USING gin(to_tsvector('english', question || ' ' || answer));

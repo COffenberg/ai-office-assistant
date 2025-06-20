@@ -21,19 +21,32 @@ export class KnowledgeBaseSearchService {
         return await this.searchBasic(query);
       }
 
-      console.log('AI enhanced search results:', results);
+      console.log('AI enhanced search results:', results?.length || 0, 'results found');
 
       // Convert database results to SearchResult format
-      const searchResults: SearchResult[] = (results as EnhancedSearchResult[])?.map(result => ({
-        type: result.result_type,
-        id: result.result_id,
-        question: result.result_type === 'qa_pair' ? result.title : undefined,
-        answer: result.content,
-        source: result.source,
-        relevanceScore: result.relevance_score + (result.context_match || 0),
-      })) || [];
+      const searchResults: SearchResult[] = (results as EnhancedSearchResult[])?.map(result => {
+        const relevanceScore = result.relevance_score + (result.context_match || 0);
+        
+        console.log(`Result: ${result.result_type} - ${result.title?.substring(0, 50)} - Score: ${relevanceScore}`);
+        
+        return {
+          type: result.result_type,
+          id: result.result_id,
+          question: result.result_type === 'qa_pair' ? result.title : undefined,
+          answer: result.content,
+          source: result.source,
+          relevanceScore: relevanceScore,
+        };
+      }) || [];
 
-      console.log('Processed search results:', searchResults);
+      // Sort by relevance score (highest first)
+      searchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+      console.log('Top 3 search results:');
+      searchResults.slice(0, 3).forEach((result, index) => {
+        console.log(`${index + 1}. ${result.type} - Score: ${result.relevanceScore.toFixed(2)} - ${result.answer?.substring(0, 100)}...`);
+      });
+
       return searchResults;
     } catch (error) {
       console.error('Knowledge base search error:', error);
@@ -44,30 +57,68 @@ export class KnowledgeBaseSearchService {
   static async searchBasic(query: string): Promise<SearchResult[]> {
     console.log('Performing basic search for:', query);
     
-    // Basic search using Q&A pairs only
-    const { data: qaResults, error } = await supabase
-      .from('qa_pairs')
-      .select('*')
-      .eq('is_active', true)
-      .or(`question.ilike.%${query}%,answer.ilike.%${query}%,category.ilike.%${query}%`)
-      .order('usage_count', { ascending: false });
+    try {
+      // Search Q&A pairs
+      const { data: qaResults, error: qaError } = await supabase
+        .from('qa_pairs')
+        .select('*')
+        .eq('is_active', true)
+        .or(`question.ilike.%${query}%,answer.ilike.%${query}%,category.ilike.%${query}%`)
+        .order('usage_count', { ascending: false });
 
-    if (error) {
+      if (qaError) {
+        console.error('Q&A search error:', qaError);
+      }
+
+      // Search document chunks
+      const { data: docResults, error: docError } = await supabase
+        .from('document_chunks')
+        .select(`
+          *,
+          documents!inner(*)
+        `)
+        .ilike('content', `%${query}%`)
+        .order('chunk_index');
+
+      if (docError) {
+        console.error('Document search error:', docError);
+      }
+
+      const results: SearchResult[] = [];
+
+      // Add Q&A results
+      if (qaResults) {
+        qaResults.forEach(qa => {
+          results.push({
+            type: 'qa_pair' as const,
+            id: qa.id,
+            question: qa.question,
+            answer: qa.answer,
+            source: `Q&A - ${qa.category}`,
+            category: qa.category,
+            relevanceScore: calculateRelevanceScore(query, qa.question + ' ' + qa.answer),
+          });
+        });
+      }
+
+      // Add document results
+      if (docResults) {
+        docResults.forEach((chunk: any) => {
+          results.push({
+            type: 'document' as const,
+            id: chunk.documents.id,
+            answer: chunk.content,
+            source: `Document - ${chunk.documents.name}`,
+            relevanceScore: calculateRelevanceScore(query, chunk.content),
+          });
+        });
+      }
+
+      console.log(`Basic search found ${results.length} results`);
+      return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    } catch (error) {
       console.error('Basic search error:', error);
       return [];
     }
-
-    const qaSearchResults: SearchResult[] = qaResults.map(qa => ({
-      type: 'qa_pair' as const,
-      id: qa.id,
-      question: qa.question,
-      answer: qa.answer,
-      source: `Q&A - ${qa.category}`,
-      category: qa.category,
-      relevanceScore: calculateRelevanceScore(query, qa.question + ' ' + qa.answer),
-    }));
-
-    console.log('Basic search results:', qaSearchResults);
-    return qaSearchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
   }
 }
