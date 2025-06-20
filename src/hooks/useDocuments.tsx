@@ -14,6 +14,10 @@ export interface Document {
   uploaded_by: string;
   upload_date: string;
   processing_status: string;
+  content_summary: string | null;
+  total_chunks: number | null;
+  ai_summary: string | null;
+  keywords: string[] | null;
   created_at: string;
   updated_at: string;
 }
