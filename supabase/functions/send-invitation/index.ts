@@ -47,7 +47,7 @@ const handler = async (req: Request): Promise<Response> => {
     const acceptUrl = `${baseUrl}/accept-invitation/${token}`;
     console.log("Invitation URL:", acceptUrl);
 
-    // Use a verified sender email (using the default Resend test email)
+    // For testing, use the admin's email address since Resend is in test mode
     const fromEmail = "Office Assistant <onboarding@resend.dev>";
     console.log("From email:", fromEmail);
 
@@ -98,16 +98,44 @@ const handler = async (req: Request): Promise<Response> => {
       `,
     });
 
-    console.log("Email sent successfully!");
     console.log("Email response:", JSON.stringify(emailResponse, null, 2));
 
+    // Check if the email was actually sent successfully
+    if (emailResponse.error) {
+      console.error("=== EMAIL SENDING FAILED ===");
+      console.error("Resend API Error:", emailResponse.error);
+      
+      // Return a proper error response
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: emailResponse.error.message || "Failed to send email",
+        details: emailResponse.error,
+        debugInfo: {
+          email,
+          acceptUrl,
+          fromEmail,
+          resendTestMode: "Emails can only be sent to casper.offenberg.jensen@gmail.com in test mode"
+        }
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      });
+    }
+
+    console.log("Email sent successfully!");
     return new Response(JSON.stringify({ 
       success: true, 
       emailResponse,
       debugInfo: {
         email,
         acceptUrl,
-        fromEmail
+        fromEmail,
+        resendTestMode: email !== "casper.offenberg.jensen@gmail.com" ? 
+          "Note: In test mode, emails can only be sent to casper.offenberg.jensen@gmail.com" : 
+          "Email sent to verified test address"
       }
     }), {
       status: 200,
@@ -124,6 +152,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: error.message,
         details: "Check the function logs for more information"
       }),

@@ -25,16 +25,34 @@ export const useInvitationEmail = () => {
         throw new Error(`Failed to send invitation email: ${error.message}`);
       }
 
+      // Check if the edge function returned an error
+      if (result && !result.success) {
+        console.error('Edge function returned error:', result);
+        throw new Error(result.error || 'Failed to send invitation email');
+      }
+
       console.log('Invitation email sent successfully:', result);
       return result;
     },
     onSuccess: (data) => {
       console.log('Email sending mutation successful:', data);
-      toast.success('Invitation email sent successfully!');
+      
+      // Show different messages based on the email address
+      if (data.debugInfo?.resendTestMode?.includes("test mode")) {
+        toast.success('Invitation created! Note: In test mode, emails can only be sent to casper.offenberg.jensen@gmail.com. Use the copy link button to share with others.');
+      } else {
+        toast.success('Invitation email sent successfully!');
+      }
     },
     onError: (error: any) => {
       console.error('Send invitation email error:', error);
-      toast.error(`Failed to send invitation email: ${error.message}`);
+      
+      // Show more specific error messages
+      if (error.message.includes('casper.offenberg.jensen@gmail.com')) {
+        toast.error('Email can only be sent to casper.offenberg.jensen@gmail.com in test mode. Use the copy link button to share the invitation.');
+      } else {
+        toast.error(`Failed to send invitation email: ${error.message}`);
+      }
     },
   });
 
