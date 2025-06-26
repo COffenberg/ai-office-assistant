@@ -194,6 +194,45 @@ export type Database = {
           },
         ]
       }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          full_name: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          full_name: string
+          id?: string
+          invited_by: string
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          full_name?: string
+          id?: string
+          invited_by?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          token?: string
+        }
+        Relationships: []
+      }
       knowledge_gaps: {
         Row: {
           created_at: string
@@ -380,6 +419,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: {
+        Args: { invitation_token: string; user_id: string }
+        Returns: boolean
+      }
       ai_enhanced_search: {
         Args: {
           search_query: string
@@ -422,6 +465,17 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_invitation_by_token: {
+        Args: { invitation_token: string }
+        Returns: {
+          id: string
+          email: string
+          full_name: string
+          role: Database["public"]["Enums"]["app_role"]
+          expires_at: string
+          invited_by: string
+        }[]
       }
       halfvec_avg: {
         Args: { "": number[] }

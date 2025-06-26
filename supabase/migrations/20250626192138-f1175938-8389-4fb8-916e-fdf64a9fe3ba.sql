@@ -36,31 +36,5 @@ CREATE POLICY "Admins can delete profiles"
   FOR DELETE
   USING (public.has_role('admin'));
 
--- Function to create user invitation
-CREATE OR REPLACE FUNCTION public.create_user_invitation(
-  user_email TEXT,
-  user_full_name TEXT,
-  user_role app_role DEFAULT 'employee'
-)
-RETURNS UUID
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  new_user_id UUID;
-BEGIN
-  -- Check if user already exists
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE email = user_email) THEN
-    RAISE EXCEPTION 'User with email % already exists', user_email;
-  END IF;
-  
-  -- Generate a UUID for the invitation
-  new_user_id := gen_random_uuid();
-  
-  -- Insert into profiles table as pending invitation
-  INSERT INTO public.profiles (id, email, full_name, role, status, invitation_sent_at, invited_by)
-  VALUES (new_user_id, user_email, user_full_name, user_role, 'pending_invitation', NOW(), auth.uid());
-  
-  RETURN new_user_id;
-END;
-$$;
+-- Note: The create_user_invitation function is now defined in the new invitations migration
+-- This migration has been updated to remove the problematic function that was causing the FK constraint error

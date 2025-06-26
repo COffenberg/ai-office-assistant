@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Trash2, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Trash2, Eye, EyeOff, Clock, User, Mail } from "lucide-react";
 import { useUserManagement } from "@/hooks/useUserManagement";
 
 const UserManagement = () => {
@@ -43,9 +43,10 @@ const UserManagement = () => {
     setNewUserRole('employee');
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      deleteUser(userId);
+  const handleDeleteUser = (userId: string, type: 'user' | 'invitation') => {
+    const itemType = type === 'invitation' ? 'invitation' : 'user';
+    if (window.confirm(`Are you sure you want to delete this ${itemType}? This action cannot be undone.`)) {
+      deleteUser({ userId, type });
     }
   };
 
@@ -61,7 +62,10 @@ const UserManagement = () => {
       case 'inactive':
         return <Badge variant="secondary">Inactive</Badge>;
       case 'pending_invitation':
-        return <Badge variant="outline" className="border-yellow-300 text-yellow-700">Pending</Badge>;
+        return <Badge variant="outline" className="border-yellow-300 text-yellow-700 flex items-center space-x-1">
+          <Clock className="w-3 h-3" />
+          <span>Pending Invitation</span>
+        </Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -71,6 +75,18 @@ const UserManagement = () => {
     return role === 'admin' ? 
       <Badge variant="destructive">Admin</Badge> : 
       <Badge variant="outline">Employee</Badge>;
+  };
+
+  const getTypeBadge = (type: 'user' | 'invitation') => {
+    return type === 'user' ? 
+      <Badge variant="default" className="flex items-center space-x-1">
+        <User className="w-3 h-3" />
+        <span>User</span>
+      </Badge> : 
+      <Badge variant="outline" className="flex items-center space-x-1">
+        <Mail className="w-3 h-3" />
+        <span>Invitation</span>
+      </Badge>;
   };
 
   const formatDate = (dateString: string) => {
@@ -84,10 +100,10 @@ const UserManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <UserPlus className="w-5 h-5" />
-            <span>Create New User</span>
+            <span>Invite New User</span>
           </CardTitle>
           <CardDescription>
-            Send an invitation to create a new user account
+            Send an invitation to create a new user account. They will receive an email with instructions to complete their signup.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -130,7 +146,7 @@ const UserManagement = () => {
             disabled={isCreatingUser || !newUserEmail.trim() || !newUserName.trim()}
             className="w-full md:w-auto"
           >
-            {isCreatingUser ? 'Creating...' : 'Create User'}
+            {isCreatingUser ? 'Sending Invitation...' : 'Send Invitation'}
           </Button>
         </CardContent>
       </Card>
@@ -138,25 +154,26 @@ const UserManagement = () => {
       {/* Users List */}
       <Card>
         <CardHeader>
-          <CardTitle>Users ({users.length})</CardTitle>
+          <CardTitle>Users & Invitations ({users.length})</CardTitle>
           <CardDescription>
-            Manage all user accounts and their permissions
+            Manage all user accounts and pending invitations
           </CardDescription>
         </CardHeader>
         <CardContent>
           {usersLoading ? (
             <div className="text-center py-8 text-gray-500">Loading users...</div>
           ) : users.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No users found</div>
+            <div className="text-center py-8 text-gray-500">No users or invitations found</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Type</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Status</TableHead>  
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -164,6 +181,7 @@ const UserManagement = () => {
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.id}>
+                      <TableCell>{getTypeBadge(user.type)}</TableCell>
                       <TableCell className="font-medium">
                         {user.full_name || 'No name'}
                       </TableCell>
@@ -173,22 +191,24 @@ const UserManagement = () => {
                       <TableCell>{formatDate(user.created_at || '')}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
+                          {user.type === 'user' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleToggleUserStatus(user.id, user.status || 'active')}
+                              disabled={isUpdatingStatus}
+                            >
+                              {user.status === 'active' ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleToggleUserStatus(user.id, user.status || 'active')}
-                            disabled={isUpdatingStatus}
-                          >
-                            {user.status === 'active' ? (
-                              <EyeOff className="w-4 h-4" />
-                            ) : (
-                              <Eye className="w-4 h-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => handleDeleteUser(user.id, user.type)}
                             disabled={isDeletingUser}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >

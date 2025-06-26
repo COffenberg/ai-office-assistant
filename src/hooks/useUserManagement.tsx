@@ -10,24 +10,75 @@ interface CreateUserData {
   role: 'admin' | 'employee';
 }
 
+interface User {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: 'admin' | 'employee';
+  status: string | null;
+  created_at: string | null;
+  type: 'user' | 'invitation';
+  invitation_id?: string;
+  expires_at?: string;
+}
+
 export const useUserManagement = () => {
   const queryClient = useQueryClient();
 
-  // Fetch all users (profiles)
+  // Fetch all users and invitations
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch existing users from profiles
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching users:', error);
-        throw error;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
       }
 
-      return data;
+      // Fetch pending invitations
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (invitationsError) {
+        console.error('Error fetching invitations:', invitationsError);
+        throw invitationsError;
+      }
+
+      // Combine users and invitations
+      const combinedUsers: User[] = [
+        ...profilesData.map(profile => ({
+          id: profile.id,
+          email: profile.email,
+          full_name: profile.full_name,
+          role: profile.role,
+          status: profile.status,
+          created_at: profile.created_at,
+          type: 'user' as const
+        })),
+        ...invitationsData.map(invitation => ({
+          id: invitation.id,
+          email: invitation.email,
+          full_name: invitation.full_name,
+          role: invitation.role,
+          status: 'pending_invitation',
+          created_at: invitation.created_at,
+          type: 'invitation' as const,
+          invitation_id: invitation.id,
+          expires_at: invitation.expires_at
+        }))
+      ];
+
+      return combinedUsers.sort((a, b) => 
+        new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
+      );
     },
   });
 
@@ -57,17 +108,29 @@ export const useUserManagement = () => {
     },
   });
 
-  // Delete user
+  // Delete user or invitation
   const deleteUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
+    mutationFn: async ({ userId, type }: { userId: string; type: 'user' | 'invitation' }) => {
+      if (type === 'invitation') {
+        const { error } = await supabase
+          .from('invitations')
+          .delete()
+          .eq('id', userId);
 
-      if (error) {
-        console.error('Error deleting user:', error);
-        throw error;
+        if (error) {
+          console.error('Error deleting invitation:', error);
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+
+        if (error) {
+          console.error('Error deleting user:', error);
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -80,7 +143,7 @@ export const useUserManagement = () => {
     },
   });
 
-  // Update user status
+  // Update user status (only for real users, not invitations)
   const updateUserStatusMutation = useMutation({
     mutationFn: async ({ userId, status }: { userId: string; status: string }) => {
       const { error } = await supabase
