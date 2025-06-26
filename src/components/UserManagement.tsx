@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Trash2, Eye, EyeOff, Clock, User, Mail, Send, Copy, AlertCircle } from "lucide-react";
+import { UserPlus, Trash2, Eye, EyeOff, Clock, User, Mail, Send, Copy, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { useUserManagement } from "@/hooks/useUserManagement";
 import { toast } from "sonner";
 
@@ -31,8 +31,15 @@ const UserManagement = () => {
 
   const handleCreateUser = () => {
     if (!newUserEmail.trim() || !newUserName.trim()) {
+      toast.error('Please fill in all required fields');
       return;
     }
+
+    console.log('Creating user with data:', {
+      email: newUserEmail.trim(),
+      fullName: newUserName.trim(),
+      role: newUserRole,
+    });
 
     createUser({
       email: newUserEmail.trim(),
@@ -59,6 +66,7 @@ const UserManagement = () => {
   };
 
   const handleResendInvitation = (user: any) => {
+    console.log('Resending invitation for user:', user);
     resendInvitation(user);
   };
 
@@ -68,17 +76,32 @@ const UserManagement = () => {
     toast.success('Invitation link copied to clipboard');
   };
 
-  const getStatusBadge = (status: string, expiresAt?: string) => {
+  const getStatusBadge = (status: string, expiresAt?: string, emailSent?: boolean) => {
     if (status === 'pending_invitation') {
       const isExpired = expiresAt && new Date(expiresAt) < new Date();
+      
+      if (isExpired) {
+        return (
+          <Badge variant="destructive" className="border-red-300 text-red-700 flex items-center space-x-1">
+            <AlertCircle className="w-3 h-3" />
+            <span>Expired Invitation</span>
+          </Badge>
+        );
+      }
+      
       return (
-        <Badge 
-          variant={isExpired ? "destructive" : "outline"} 
-          className={isExpired ? "border-red-300 text-red-700" : "border-yellow-300 text-yellow-700 flex items-center space-x-1"}
-        >
-          {isExpired ? <AlertCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-          <span>{isExpired ? 'Expired Invitation' : 'Pending Invitation'}</span>
-        </Badge>
+        <div className="flex items-center space-x-2">
+          <Badge variant="outline" className="border-yellow-300 text-yellow-700 flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>Pending Invitation</span>
+          </Badge>
+          {emailSent === false && (
+            <Badge variant="destructive" className="flex items-center space-x-1">
+              <XCircle className="w-3 h-3" />
+              <span>Email Failed</span>
+            </Badge>
+          )}
+        </div>
       );
     }
     
@@ -171,7 +194,7 @@ const UserManagement = () => {
             disabled={isCreatingUser || !newUserEmail.trim() || !newUserName.trim()}
             className="w-full md:w-auto"
           >
-            {isCreatingUser ? 'Sending Invitation...' : 'Send Invitation'}
+            {isCreatingUser ? 'Creating Invitation...' : 'Create Invitation & Send Email'}
           </Button>
         </CardContent>
       </Card>
@@ -181,7 +204,7 @@ const UserManagement = () => {
         <CardHeader>
           <CardTitle>Users & Invitations ({users.length})</CardTitle>
           <CardDescription>
-            Manage all user accounts and pending invitations
+            Manage all user accounts and pending invitations. Check the status column for email delivery status.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -212,7 +235,7 @@ const UserManagement = () => {
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
-                      <TableCell>{getStatusBadge(user.status || 'active', user.expires_at)}</TableCell>
+                      <TableCell>{getStatusBadge(user.status || 'active', user.expires_at, user.email_sent)}</TableCell>
                       <TableCell>{formatDate(user.created_at || '')}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
@@ -272,6 +295,30 @@ const UserManagement = () => {
               </Table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Debug Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Debugging Help</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-gray-600 space-y-2">
+            <p><strong>If emails are not being received:</strong></p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Check spam/junk folder</li>
+              <li>Verify the email address is correct</li>
+              <li>Use the "Copy invitation link" button as a backup</li>
+              <li>Check the browser console for error messages</li>
+            </ul>
+            <p className="mt-4"><strong>Email Status Indicators:</strong></p>
+            <ul className="list-disc list-inside space-y-1">
+              <li><strong>Pending Invitation:</strong> Email should be sent</li>
+              <li><strong>Email Failed:</strong> Use resend button or copy link</li>
+              <li><strong>Expired Invitation:</strong> Create a new invitation</li>
+            </ul>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -22,16 +22,19 @@ interface User {
   invitation_id?: string;
   expires_at?: string;
   token?: string;
+  email_sent?: boolean;
 }
 
 export const useUserManagement = () => {
   const queryClient = useQueryClient();
-  const { sendInvitationEmail, isSendingEmail } = useInvitationEmail();
+  const { sendInvitationEmail, isSendingEmail, emailSendingError } = useInvitationEmail();
 
   // Fetch all users and invitations
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
+      console.log('Fetching users and invitations...');
+      
       // Fetch existing users from profiles
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -55,6 +58,9 @@ export const useUserManagement = () => {
         throw invitationsError;
       }
 
+      console.log('Fetched profiles:', profilesData?.length || 0);
+      console.log('Fetched invitations:', invitationsData?.length || 0);
+
       // Combine users and invitations
       const combinedUsers: User[] = [
         ...profilesData.map(profile => ({
@@ -64,7 +70,8 @@ export const useUserManagement = () => {
           role: profile.role,
           status: profile.status,
           created_at: profile.created_at,
-          type: 'user' as const
+          type: 'user' as const,
+          email_sent: true // Existing users don't need email invitations
         })),
         ...invitationsData.map(invitation => ({
           id: invitation.id,
@@ -76,7 +83,8 @@ export const useUserManagement = () => {
           type: 'invitation' as const,
           invitation_id: invitation.id,
           expires_at: invitation.expires_at,
-          token: invitation.token
+          token: invitation.token,
+          email_sent: false // Will be updated when email is sent
         }))
       ];
 
@@ -89,6 +97,8 @@ export const useUserManagement = () => {
   // Create user invitation
   const createUserMutation = useMutation({
     mutationFn: async (userData: CreateUserData) => {
+      console.log('Creating user invitation:', userData);
+      
       const { data, error } = await supabase.rpc('create_user_invitation', {
         user_email: userData.email,
         user_full_name: userData.fullName,
@@ -99,6 +109,8 @@ export const useUserManagement = () => {
         console.error('Error creating user invitation:', error);
         throw error;
       }
+
+      console.log('User invitation created with ID:', data);
 
       // Fetch the invitation details to get the token
       const { data: invitation, error: invitationError } = await supabase
@@ -112,19 +124,39 @@ export const useUserManagement = () => {
         throw invitationError;
       }
 
+      console.log('Invitation details fetched:', invitation);
+
       // Send invitation email
-      sendInvitationEmail({
-        invitationId: invitation.id,
-        email: invitation.email,
-        fullName: invitation.full_name,
-        role: invitation.role,
-        token: invitation.token,
-      });
+      try {
+        await new Promise((resolve, reject) => {
+          sendInvitationEmail({
+            invitationId: invitation.id,
+            email: invitation.email,
+            fullName: invitation.full_name,
+            role: invitation.role,
+            token: invitation.token,
+          });
+          
+          // Wait a bit to let the mutation complete
+          setTimeout(() => {
+            if (emailSendingError) {
+              reject(emailSendingError);
+            } else {
+              resolve(true);
+            }
+          }, 2000);
+        });
+        
+        console.log('Invitation email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send invitation email:', emailError);
+        toast.error('Invitation created but email failed to send. Use the resend button.');
+      }
 
       return data;
     },
     onSuccess: () => {
-      toast.success('User invitation created and email sent successfully');
+      toast.success('User invitation created successfully');
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error: any) => {
@@ -136,16 +168,29 @@ export const useUserManagement = () => {
   // Resend invitation email
   const resendInvitationMutation = useMutation({
     mutationFn: async (user: User) => {
+      console.log('Resending invitation email for:', user.email);
+      
       if (user.type !== 'invitation' || !user.token) {
         throw new Error('Invalid invitation data');
       }
 
-      sendInvitationEmail({
-        invitationId: user.id,
-        email: user.email,
-        fullName: user.full_name || '',
-        role: user.role,
-        token: user.token,
+      return new Promise((resolve, reject) => {
+        sendInvitationEmail({
+          invitationId: user.id,
+          email: user.email,
+          fullName: user.full_name || '',
+          role: user.role,
+          token: user.token,
+        });
+        
+        // Wait for the email mutation to complete
+        setTimeout(() => {
+          if (emailSendingError) {
+            reject(emailSendingError);
+          } else {
+            resolve(true);
+          }
+        }, 2000);
       });
     },
     onSuccess: () => {

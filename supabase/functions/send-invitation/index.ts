@@ -26,12 +26,34 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { invitationId, email, fullName, role, token }: InvitationEmailRequest = await req.json();
     
-    console.log("Sending invitation email to:", email);
+    console.log("=== INVITATION EMAIL DEBUG ===");
+    console.log("Sending invitation email request:");
+    console.log("- Email:", email);
+    console.log("- Full Name:", fullName);
+    console.log("- Role:", role);
+    console.log("- Token:", token);
+    console.log("- Invitation ID:", invitationId);
 
-    const acceptUrl = `${Deno.env.get("SUPABASE_URL")?.replace('//', '//ai-office-assistant.lovable.app/')}/accept-invitation/${token}`;
+    // Check if RESEND_API_KEY is available
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      console.error("ERROR: RESEND_API_KEY is not configured");
+      throw new Error("Email service is not configured. Please contact administrator.");
+    }
+    console.log("RESEND_API_KEY is configured:", resendApiKey ? "Yes" : "No");
 
+    // Construct the correct invitation URL
+    const baseUrl = "https://ai-office-assistant.lovable.app";
+    const acceptUrl = `${baseUrl}/accept-invitation/${token}`;
+    console.log("Invitation URL:", acceptUrl);
+
+    // Use a verified sender email (using the default Resend test email)
+    const fromEmail = "Office Assistant <onboarding@resend.dev>";
+    console.log("From email:", fromEmail);
+
+    console.log("Attempting to send email...");
     const emailResponse = await resend.emails.send({
-      from: "Office Assistant <onboarding@resend.dev>",
+      from: fromEmail,
       to: [email],
       subject: "You're invited to join our team!",
       html: `
@@ -76,9 +98,18 @@ const handler = async (req: Request): Promise<Response> => {
       `,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log("Email sent successfully!");
+    console.log("Email response:", JSON.stringify(emailResponse, null, 2));
 
-    return new Response(JSON.stringify({ success: true, emailResponse }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      emailResponse,
+      debugInfo: {
+        email,
+        acceptUrl,
+        fromEmail
+      }
+    }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -86,9 +117,16 @@ const handler = async (req: Request): Promise<Response> => {
       },
     });
   } catch (error: any) {
-    console.error("Error sending invitation email:", error);
+    console.error("=== EMAIL SENDING ERROR ===");
+    console.error("Error details:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: "Check the function logs for more information"
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
