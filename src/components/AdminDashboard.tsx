@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3, Brain, AlertTriangle, Settings } from "lucide-react";
+import { ArrowLeft, FileText, MessageSquare, Upload, X, LogOut, User, Download, BarChart3, Brain, AlertTriangle, Settings, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
@@ -15,6 +15,7 @@ import { useDocumentProcessing } from "@/hooks/useDocumentProcessing";
 import AdminAnalytics from "./AdminAnalytics";
 import KnowledgeGapManager from "./KnowledgeGapManager";
 import DocumentProcessingTest from "./DocumentProcessingTest";
+import EmployeeDashboard from "./EmployeeDashboard";
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -22,6 +23,8 @@ interface AdminDashboardProps {
 
 const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
   const { signOut, profile } = useAuth();
+  const [isInUserView, setIsInUserView] = useState(false);
+
   const { 
     documents, 
     isLoading: documentsLoading, 
@@ -115,6 +118,16 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // If admin is in user view mode, show the EmployeeDashboard
+  if (isInUserView) {
+    return (
+      <EmployeeDashboard 
+        onBack={() => setIsInUserView(false)}
+        isAdminUserMode={true}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -141,6 +154,14 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
                   </Badge>
                 </div>
               )}
+              <Button 
+                variant="outline" 
+                onClick={() => setIsInUserView(true)}
+                className="flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Switch to User View</span>
+              </Button>
               <Button variant="outline" onClick={handleSignOut} className="flex items-center space-x-2">
                 <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>

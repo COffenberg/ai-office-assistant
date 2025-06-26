@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,9 +11,10 @@ import ChatHistory from "./dashboard/ChatHistory";
 
 interface EmployeeDashboardProps {
   onBack: () => void;
+  isAdminUserMode?: boolean;
 }
 
-const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
+const EmployeeDashboard = ({ onBack, isAdminUserMode = false }: EmployeeDashboardProps) => {
   const { signOut } = useAuth();
   const { chatHistory, addMessage, rateAnswer } = useChatHistory();
   const { generateAnswer, getSuggestedQuestions } = useKnowledgeBase();
@@ -103,7 +103,11 @@ const EmployeeDashboard = ({ onBack }: EmployeeDashboardProps) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <EmployeeDashboardHeader onBack={onBack} onLogout={handleLogout} />
+      <EmployeeDashboardHeader 
+        onBack={onBack} 
+        onLogout={handleLogout}
+        isAdminUserMode={isAdminUserMode}
+      />
 
       <div className="container mx-auto px-6 py-8 max-w-4xl">
         <QuestionInput
