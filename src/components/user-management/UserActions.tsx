@@ -47,10 +47,29 @@ export const UserActions = ({
   };
 
   const handleDeleteUser = (userId: string, type: 'user' | 'invitation') => {
+    // Validate that userId is not undefined or empty
+    if (!userId || userId === 'undefined') {
+      console.error('Invalid user ID:', userId);
+      toast.error('Cannot delete user: Invalid user ID');
+      return;
+    }
+
     const itemType = type === 'invitation' ? 'invitation' : 'user';
     if (window.confirm(`Are you sure you want to delete this ${itemType}? This action cannot be undone.`)) {
+      console.log(`Deleting ${itemType} with ID:`, userId);
       onDeleteUser(userId, type);
     }
+  };
+
+  const handleToggleStatus = (userId: string, currentStatus: string) => {
+    // Validate that userId is not undefined or empty
+    if (!userId || userId === 'undefined') {
+      console.error('Invalid user ID for status toggle:', userId);
+      toast.error('Cannot update user status: Invalid user ID');
+      return;
+    }
+
+    onToggleUserStatus(userId, currentStatus);
   };
 
   return (
@@ -82,7 +101,7 @@ export const UserActions = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onToggleUserStatus(user.id, user.status || 'active')}
+          onClick={() => handleToggleStatus(user.id, user.status || 'active')}
           disabled={isUpdatingStatus}
           title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
         >

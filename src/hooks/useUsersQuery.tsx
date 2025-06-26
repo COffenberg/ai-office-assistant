@@ -33,11 +33,12 @@ export const useUsersQuery = () => {
         throw profilesError;
       }
 
-      // Fetch pending invitations
+      // Fetch only pending invitations (exclude accepted ones)
       const { data: invitationsData, error: invitationsError } = await supabase
         .from('invitations')
         .select('*')
         .eq('status', 'pending')
+        .is('accepted_at', null)
         .order('created_at', { ascending: false });
 
       if (invitationsError) {
@@ -46,7 +47,19 @@ export const useUsersQuery = () => {
       }
 
       console.log('Fetched profiles:', profilesData?.length || 0);
-      console.log('Fetched invitations:', invitationsData?.length || 0);
+      console.log('Fetched pending invitations:', invitationsData?.length || 0);
+
+      // Get emails from existing profiles to avoid duplicates
+      const existingEmails = new Set(profilesData.map(profile => profile.email));
+
+      // Filter out invitations for emails that already have profiles
+      const validInvitations = invitationsData.filter(invitation => {
+        if (existingEmails.has(invitation.email)) {
+          console.warn(`Invitation for ${invitation.email} skipped - user already exists in profiles`);
+          return false;
+        }
+        return true;
+      });
 
       // Combine users and invitations
       const combinedUsers: User[] = [
@@ -60,7 +73,7 @@ export const useUsersQuery = () => {
           type: 'user' as const,
           email_sent: true // Existing users don't need email invitations
         })),
-        ...invitationsData.map(invitation => ({
+        ...validInvitations.map(invitation => ({
           id: invitation.id,
           email: invitation.email,
           full_name: invitation.full_name,
