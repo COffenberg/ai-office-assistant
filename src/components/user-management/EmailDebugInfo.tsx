@@ -22,6 +22,7 @@ export const EmailDebugInfo = () => {
             <li><strong>Email verification required:</strong> Users must verify their email after signing up</li>
             <li><strong>Profile protection:</strong> Existing user profiles cannot be overwritten</li>
             <li><strong>Email matching:</strong> The invitation email must match the account email</li>
+            <li><strong>Duplicate prevention:</strong> System automatically handles duplicate invitations</li>
           </ul>
           
           <p className="mt-4"><strong>How to use invitations:</strong></p>
@@ -30,6 +31,15 @@ export const EmailDebugInfo = () => {
             <li><strong>For other users:</strong> Use the "Copy invitation link" button and share manually</li>
             <li><strong>Email forwarding:</strong> Forward test emails to intended recipients</li>
             <li><strong>New users:</strong> Recipients must create new accounts, not use existing ones</li>
+            <li><strong>Existing users:</strong> System will prevent creating invitations for active users</li>
+          </ul>
+          
+          <p className="mt-4"><strong>Error Handling:</strong></p>
+          <ul className="list-disc list-inside space-y-1">
+            <li><strong>Active users:</strong> Cannot create invitations for users who already have accounts</li>
+            <li><strong>Pending invitations:</strong> Only one pending invitation per email address</li>
+            <li><strong>Accepted invitations:</strong> Old accepted invitations are automatically cleaned up</li>
+            <li><strong>Clear messages:</strong> Specific error messages guide you on what to do</li>
           </ul>
           
           <p className="mt-4"><strong>Troubleshooting:</strong></p>

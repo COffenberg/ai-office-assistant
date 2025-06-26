@@ -80,7 +80,15 @@ export const useUserCreation = () => {
     },
     onError: (error: any) => {
       console.error('Create user error:', error);
-      toast.error(error.message || 'Failed to create user invitation');
+      
+      // Provide more specific error messages based on the error
+      if (error.message.includes('already exists as an active user')) {
+        toast.error('This user already has an active account. No invitation needed.');
+      } else if (error.message.includes('Pending invitation')) {
+        toast.error('A pending invitation already exists for this email address.');
+      } else {
+        toast.error(error.message || 'Failed to create user invitation');
+      }
     },
   });
 
