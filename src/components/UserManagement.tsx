@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Trash2, Eye, EyeOff, Clock, User, Mail } from "lucide-react";
+import { UserPlus, Trash2, Eye, EyeOff, Clock, User, Mail, Send, Copy, AlertCircle } from "lucide-react";
 import { useUserManagement } from "@/hooks/useUserManagement";
+import { toast } from "sonner";
 
 const UserManagement = () => {
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -23,7 +24,9 @@ const UserManagement = () => {
     deleteUser,
     isDeletingUser,
     updateUserStatus,
-    isUpdatingStatus
+    isUpdatingStatus,
+    resendInvitation,
+    isResendingInvitation
   } = useUserManagement();
 
   const handleCreateUser = () => {
@@ -55,17 +58,35 @@ const UserManagement = () => {
     updateUserStatus({ userId, status: newStatus });
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleResendInvitation = (user: any) => {
+    resendInvitation(user);
+  };
+
+  const handleCopyInvitationLink = (token: string) => {
+    const invitationUrl = `${window.location.origin}/accept-invitation/${token}`;
+    navigator.clipboard.writeText(invitationUrl);
+    toast.success('Invitation link copied to clipboard');
+  };
+
+  const getStatusBadge = (status: string, expiresAt?: string) => {
+    if (status === 'pending_invitation') {
+      const isExpired = expiresAt && new Date(expiresAt) < new Date();
+      return (
+        <Badge 
+          variant={isExpired ? "destructive" : "outline"} 
+          className={isExpired ? "border-red-300 text-red-700" : "border-yellow-300 text-yellow-700 flex items-center space-x-1"}
+        >
+          {isExpired ? <AlertCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+          <span>{isExpired ? 'Expired Invitation' : 'Pending Invitation'}</span>
+        </Badge>
+      );
+    }
+    
     switch (status) {
       case 'active':
         return <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>;
       case 'inactive':
         return <Badge variant="secondary">Inactive</Badge>;
-      case 'pending_invitation':
-        return <Badge variant="outline" className="border-yellow-300 text-yellow-700 flex items-center space-x-1">
-          <Clock className="w-3 h-3" />
-          <span>Pending Invitation</span>
-        </Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -91,6 +112,10 @@ const UserManagement = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const isInvitationExpired = (expiresAt?: string) => {
+    return expiresAt && new Date(expiresAt) < new Date();
   };
 
   return (
@@ -187,16 +212,40 @@ const UserManagement = () => {
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
-                      <TableCell>{getStatusBadge(user.status || 'active')}</TableCell>
+                      <TableCell>{getStatusBadge(user.status || 'active', user.expires_at)}</TableCell>
                       <TableCell>{formatDate(user.created_at || '')}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
+                          {user.type === 'invitation' && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleResendInvitation(user)}
+                                disabled={isResendingInvitation || isInvitationExpired(user.expires_at)}
+                                title="Resend invitation email"
+                              >
+                                <Send className="w-4 h-4" />
+                              </Button>
+                              {user.token && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCopyInvitationLink(user.token!)}
+                                  title="Copy invitation link"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </>
+                          )}
                           {user.type === 'user' && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleToggleUserStatus(user.id, user.status || 'active')}
                               disabled={isUpdatingStatus}
+                              title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
                             >
                               {user.status === 'active' ? (
                                 <EyeOff className="w-4 h-4" />
@@ -211,6 +260,7 @@ const UserManagement = () => {
                             onClick={() => handleDeleteUser(user.id, user.type)}
                             disabled={isDeletingUser}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title={`Delete ${user.type}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useInvitationEmail } from './useInvitationEmail';
 
 interface CreateUserData {
   email: string;
@@ -20,10 +21,12 @@ interface User {
   type: 'user' | 'invitation';
   invitation_id?: string;
   expires_at?: string;
+  token?: string;
 }
 
 export const useUserManagement = () => {
   const queryClient = useQueryClient();
+  const { sendInvitationEmail, isSendingEmail } = useInvitationEmail();
 
   // Fetch all users and invitations
   const { data: users, isLoading: usersLoading } = useQuery({
@@ -72,7 +75,8 @@ export const useUserManagement = () => {
           created_at: invitation.created_at,
           type: 'invitation' as const,
           invitation_id: invitation.id,
-          expires_at: invitation.expires_at
+          expires_at: invitation.expires_at,
+          token: invitation.token
         }))
       ];
 
@@ -96,15 +100,60 @@ export const useUserManagement = () => {
         throw error;
       }
 
+      // Fetch the invitation details to get the token
+      const { data: invitation, error: invitationError } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('id', data)
+        .single();
+
+      if (invitationError) {
+        console.error('Error fetching invitation details:', invitationError);
+        throw invitationError;
+      }
+
+      // Send invitation email
+      sendInvitationEmail({
+        invitationId: invitation.id,
+        email: invitation.email,
+        fullName: invitation.full_name,
+        role: invitation.role,
+        token: invitation.token,
+      });
+
       return data;
     },
     onSuccess: () => {
-      toast.success('User invitation created successfully');
+      toast.success('User invitation created and email sent successfully');
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error: any) => {
       console.error('Create user error:', error);
       toast.error(error.message || 'Failed to create user invitation');
+    },
+  });
+
+  // Resend invitation email
+  const resendInvitationMutation = useMutation({
+    mutationFn: async (user: User) => {
+      if (user.type !== 'invitation' || !user.token) {
+        throw new Error('Invalid invitation data');
+      }
+
+      sendInvitationEmail({
+        invitationId: user.id,
+        email: user.email,
+        fullName: user.full_name || '',
+        role: user.role,
+        token: user.token,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Invitation email resent successfully');
+    },
+    onError: (error: any) => {
+      console.error('Resend invitation error:', error);
+      toast.error(error.message || 'Failed to resend invitation');
     },
   });
 
@@ -175,5 +224,7 @@ export const useUserManagement = () => {
     isDeletingUser: deleteUserMutation.isPending,
     updateUserStatus: updateUserStatusMutation.mutate,
     isUpdatingStatus: updateUserStatusMutation.isPending,
+    resendInvitation: resendInvitationMutation.mutate,
+    isResendingInvitation: resendInvitationMutation.isPending || isSendingEmail,
   };
 };

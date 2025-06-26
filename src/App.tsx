@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthPortal from "./pages/AuthPortal";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
+import AcceptInvitation from "./pages/AcceptInvitation";
 import AdminDashboard from "./components/AdminDashboard";
 import EmployeeDashboard from "./components/EmployeeDashboard";
 import NotFound from "./pages/NotFound";
@@ -29,6 +30,7 @@ const App: React.FC = () => {
               <Route path="/auth" element={<AuthPortal />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/forgotpassword" element={<ForgotPassword />} />
+              <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
               <Route 
                 path="/admin" 
                 element={
