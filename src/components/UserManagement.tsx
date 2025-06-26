@@ -24,6 +24,10 @@ const UserManagement = () => {
     updateUserStatus({ userId, status: newStatus });
   };
 
+  const handleDeleteUser = (userId: string, type: 'user' | 'invitation') => {
+    deleteUser({ userId, type });
+  };
+
   return (
     <div className="space-y-6">
       <CreateUserForm 
@@ -46,7 +50,7 @@ const UserManagement = () => {
           ) : (
             <UserTable
               users={users}
-              onDeleteUser={deleteUser}
+              onDeleteUser={handleDeleteUser}
               onToggleUserStatus={handleToggleUserStatus}
               onResendInvitation={resendInvitation}
               isDeletingUser={isDeletingUser}
