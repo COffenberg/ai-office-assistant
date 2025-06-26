@@ -257,7 +257,10 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          invitation_sent_at: string | null
+          invited_by: string | null
           role: Database["public"]["Enums"]["app_role"]
+          status: string | null
           updated_at: string | null
         }
         Insert: {
@@ -265,7 +268,10 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          invitation_sent_at?: string | null
+          invited_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -273,7 +279,10 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          invitation_sent_at?: string | null
+          invited_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -390,6 +399,14 @@ export type Database = {
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
+      }
+      create_user_invitation: {
+        Args: {
+          user_email: string
+          user_full_name: string
+          user_role?: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
       }
       enhanced_search: {
         Args: { search_query: string; limit_results?: number }
