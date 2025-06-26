@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle, XCircle, Mail, User, Shield } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Mail, User, Shield, AlertCircle } from 'lucide-react';
 import { useInvitation } from '@/hooks/useInvitation';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 const AcceptInvitation = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { user, signUp } = useAuth();
+  const { user, signUp, signOut } = useAuth();
   const { invitation, isLoading, acceptInvitation, isAcceptingInvitation, isAccepted } = useInvitation(token);
   
   const [password, setPassword] = useState('');
@@ -22,11 +22,11 @@ const AcceptInvitation = () => {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   useEffect(() => {
+    // If user is already logged in, show warning and option to sign out
     if (user && invitation) {
-      // User is already logged in, just accept the invitation
-      acceptInvitation(token!);
+      toast.warning('You are already logged in. Please sign out to accept this invitation with a new account.');
     }
-  }, [user, invitation, token, acceptInvitation]);
+  }, [user, invitation]);
 
   useEffect(() => {
     if (isAccepted) {
@@ -53,23 +53,42 @@ const AcceptInvitation = () => {
     setIsCreatingAccount(true);
 
     try {
-      // Sign up the user
+      // Sign up the user with the invitation email
       const { error } = await signUp(invitation.email, password, invitation.full_name, invitation.role);
       
       if (error) {
-        toast.error(error.message);
+        console.error('Sign up error:', error);
+        toast.error(error.message || 'Failed to create account');
         setIsCreatingAccount(false);
         return;
       }
 
-      // Accept the invitation
-      acceptInvitation(token);
+      // Note: The user will need to verify their email first
+      toast.success('Account created! Please check your email to verify your account, then return to accept the invitation.');
+      
     } catch (error: any) {
       console.error('Error creating account:', error);
       toast.error('Failed to create account');
     } finally {
       setIsCreatingAccount(false);
     }
+  };
+
+  const handleAcceptInvitation = () => {
+    if (!token || !user) return;
+    
+    // Check if the logged-in user's email matches the invitation email
+    if (user.email !== invitation?.email) {
+      toast.error(`This invitation is for ${invitation?.email}, but you are logged in as ${user.email}. Please sign out and create a new account with the correct email.`);
+      return;
+    }
+
+    acceptInvitation(token);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully. You can now create a new account to accept the invitation.');
   };
 
   if (isLoading) {
@@ -133,7 +152,7 @@ const AcceptInvitation = () => {
           <Mail className="w-12 h-12 text-blue-600 mx-auto mb-4" />
           <CardTitle>Accept Your Invitation</CardTitle>
           <CardDescription>
-            You've been invited to join our team. Complete your account setup below.
+            You've been invited to join our team. Follow the steps below to accept.
           </CardDescription>
         </CardHeader>
         
@@ -159,9 +178,65 @@ const AcceptInvitation = () => {
             </div>
           </div>
 
-          {!user ? (
+          {user ? (
+            // User is logged in - show warning and options
+            <div className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-800">Already logged in</p>
+                    <p className="text-yellow-700 mt-1">
+                      You are currently logged in as <strong>{user.email}</strong>. 
+                      {user.email === invitation.email ? 
+                        ' You can accept this invitation directly.' : 
+                        ' To accept this invitation, you need to sign out and create a new account.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {user.email === invitation.email ? (
+                <Button 
+                  onClick={handleAcceptInvitation}
+                  disabled={isAcceptingInvitation}
+                  className="w-full"
+                >
+                  {isAcceptingInvitation ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Accepting Invitation...
+                    </>
+                  ) : (
+                    'Accept Invitation'
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleSignOut}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Sign Out to Accept Invitation
+                </Button>
+              )}
+            </div>
+          ) : (
             // User needs to create an account
             <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-800">Create New Account</p>
+                    <p className="text-blue-700 mt-1">
+                      You need to create a new account with the email <strong>{invitation.email}</strong> to accept this invitation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="password">Create Password</Label>
                 <Input
@@ -193,26 +268,13 @@ const AcceptInvitation = () => {
                     Creating Account...
                   </>
                 ) : (
-                  'Create Account & Accept Invitation'
+                  'Create Account'
                 )}
               </Button>
+              <p className="text-xs text-gray-600 text-center">
+                After creating your account, you'll need to verify your email before you can accept the invitation.
+              </p>
             </div>
-          ) : (
-            // User is logged in, just accept invitation
-            <Button 
-              onClick={() => acceptInvitation(token!)}
-              disabled={isAcceptingInvitation}
-              className="w-full"
-            >
-              {isAcceptingInvitation ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Accepting Invitation...
-                </>
-              ) : (
-                'Accept Invitation'
-              )}
-            </Button>
           )}
 
           <div className="text-center">
@@ -221,7 +283,7 @@ const AcceptInvitation = () => {
               onClick={() => navigate('/auth')}
               className="text-sm text-gray-600"
             >
-              Already have an account? Sign in
+              Back to Login
             </Button>
           </div>
         </CardContent>

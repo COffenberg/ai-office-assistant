@@ -23,6 +23,8 @@ export const useInvitation = (token?: string) => {
     queryFn: async () => {
       if (!token) return null;
 
+      console.log('Fetching invitation for token:', token);
+
       const { data, error } = await supabase.rpc('get_invitation_by_token', {
         invitation_token: token
       });
@@ -32,6 +34,7 @@ export const useInvitation = (token?: string) => {
         throw error;
       }
 
+      console.log('Invitation data:', data);
       return data && data.length > 0 ? data[0] as InvitationData : null;
     },
     enabled: !!token,
@@ -44,6 +47,8 @@ export const useInvitation = (token?: string) => {
         throw new Error('User must be authenticated to accept invitation');
       }
 
+      console.log('Accepting invitation for user:', user.id, 'with token:', invitationToken);
+
       const { data, error } = await supabase.rpc('accept_invitation', {
         invitation_token: invitationToken,
         user_id: user.id
@@ -54,6 +59,7 @@ export const useInvitation = (token?: string) => {
         throw error;
       }
 
+      console.log('Invitation accepted successfully:', data);
       return data;
     },
     onSuccess: () => {
@@ -61,7 +67,15 @@ export const useInvitation = (token?: string) => {
     },
     onError: (error: any) => {
       console.error('Accept invitation error:', error);
-      toast.error(error.message || 'Failed to accept invitation');
+      
+      // Provide more specific error messages based on the error
+      if (error.message.includes('User profile already exists')) {
+        toast.error('Cannot accept invitation: You already have an account. Please contact an administrator if you need help.');
+      } else if (error.message.includes('Invalid or expired invitation token')) {
+        toast.error('This invitation link is invalid or has expired. Please request a new invitation.');
+      } else {
+        toast.error(error.message || 'Failed to accept invitation');
+      }
     },
   });
 

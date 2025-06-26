@@ -5,7 +5,7 @@ export const EmailDebugInfo = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email System Status</CardTitle>
+        <CardTitle>Email System Status & Security Info</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-sm text-gray-600 space-y-2">
@@ -16,18 +16,29 @@ export const EmailDebugInfo = () => {
             <li>All other email addresses will show an error</li>
           </ul>
           
+          <p className="mt-4"><strong>Secure Invitation Process:</strong></p>
+          <ul className="list-disc list-inside space-y-1">
+            <li><strong>New users only:</strong> Invitations can only be accepted by creating new accounts</li>
+            <li><strong>Email verification required:</strong> Users must verify their email after signing up</li>
+            <li><strong>Profile protection:</strong> Existing user profiles cannot be overwritten</li>
+            <li><strong>Email matching:</strong> The invitation email must match the account email</li>
+          </ul>
+          
           <p className="mt-4"><strong>How to use invitations:</strong></p>
           <ul className="list-disc list-inside space-y-1">
             <li><strong>For testing:</strong> Create invitations for <code>casper.offenberg.jensen@gmail.com</code></li>
             <li><strong>For other users:</strong> Use the "Copy invitation link" button and share manually</li>
             <li><strong>Email forwarding:</strong> Forward test emails to intended recipients</li>
+            <li><strong>New users:</strong> Recipients must create new accounts, not use existing ones</li>
           </ul>
           
           <p className="mt-4"><strong>Troubleshooting:</strong></p>
           <ul className="list-disc list-inside space-y-1">
+            <li>Users must create new accounts with the exact invitation email</li>
+            <li>Existing users cannot accept invitations (prevents account overwrites)</li>
+            <li>Email verification is required before invitation acceptance</li>
             <li>Check the browser console for detailed error messages</li>
-            <li>Errors will now show the real reason instead of false success</li>
-            <li>Use invitation links as a backup when emails fail</li>
+            <li>Use invitation links as backup when emails fail</li>
           </ul>
         </div>
       </CardContent>
