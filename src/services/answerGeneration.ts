@@ -232,6 +232,56 @@ export class AnswerGenerationService {
 
   private extractInstallationInfo(content: string, question: string): string | null {
     console.log('🔧 Extracting installation info for question:', question);
+    console.log('📄 Content preview:', content.substring(0, 200) + '...');
+    
+    // Enhanced patterns for wiring safety requirements
+    if (question.includes('wiring') && question.includes('required')) {
+      console.log('🎯 Looking for wiring safety requirements');
+      
+      const wiringSafetyPatterns = [
+        // Primary pattern for "turn off power at the fusebox first"
+        /if\s+wiring\s+is\s+required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        /when\s+wiring\s+is\s+required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        /wiring\s+.*?required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        // More flexible patterns for power/fusebox safety
+        /(?:turn\s+off|switch\s+off|shut\s+off)\s+(?:the\s+)?power\s+at\s+(?:the\s+)?fusebox\s+first[^.]*\./gi,
+        /always\s+turn\s+off\s+power\s+at\s+(?:the\s+)?fusebox[^.]*\./gi,
+        // Broader wiring safety patterns
+        /(?:if|when)\s+.*?wiring\s+.*?(?:required|needed)[^.]*(?:power|fusebox|electrical)[^.]*\./gi,
+        /wiring\s+.*?(?:required|needed)[^.]*(?:safety|power|fusebox)[^.]*\./gi
+      ];
+      
+      for (const pattern of wiringSafetyPatterns) {
+        const matches = [...content.matchAll(pattern)];
+        if (matches.length > 0) {
+          console.log('✅ Found wiring safety information:', matches[0][0]);
+          
+          // Extract surrounding context for better understanding
+          const match = matches[0][0];
+          const matchIndex = content.indexOf(match);
+          const contextStart = Math.max(0, matchIndex - 100);
+          const contextEnd = Math.min(content.length, matchIndex + match.length + 100);
+          const context = content.substring(contextStart, contextEnd);
+          
+          return `Wiring Safety Requirement:\n\n${context.trim()}`;
+        }
+      }
+      
+      // Fallback: look for any mention of power safety during wiring
+      const sentences = content.split(/[.!?]+/);
+      const relevantSentences = sentences.filter(sentence => {
+        const sentenceLower = sentence.toLowerCase();
+        return (sentenceLower.includes('wiring') && 
+                (sentenceLower.includes('power') || sentenceLower.includes('fusebox') || 
+                 sentenceLower.includes('electrical') || sentenceLower.includes('safety')) &&
+                sentence.length > 15);
+      });
+      
+      if (relevantSentences.length > 0) {
+        console.log('✅ Found relevant wiring safety sentence');
+        return `Wiring Safety Information:\n\n${relevantSentences[0].trim()}.`;
+      }
+    }
     
     // Enhanced patterns for customer call requirements with broader matching
     if (question.includes('call') && question.includes('customer')) {
