@@ -12,29 +12,39 @@ export class AnswerGenerationService {
     question: string,
     conversationHistory: any[] = []
   ): Promise<AnswerGenerationResult> {
-    console.log('Generating answer for:', question);
+    console.log('🤖 Generating answer for:', question);
     
     // Search for relevant content
     const results = await KnowledgeBaseSearchService.searchEnhanced(question);
-    console.log('Search results for answer generation:', results.length, 'results found');
+    console.log('📊 Search results for answer generation:', results.length, 'results found');
     
     if (results.length > 0) {
       const bestMatch = results[0];
-      console.log('Best match found:', {
+      console.log('🏆 Best match found:', {
         type: bestMatch.type,
-        score: bestMatch.relevanceScore,
+        score: bestMatch.relevanceScore.toFixed(3),
         source: bestMatch.source,
-        contentPreview: bestMatch.answer.substring(0, 100)
+        contentPreview: bestMatch.answer.substring(0, 100) + '...'
       });
       
-      // Check if we have a very high-confidence direct match
-      if (bestMatch.relevanceScore > 0.7) {
-        console.log('Using high-confidence direct match');
+      // Check for document-specific answers first (prioritize document content)
+      const documentResults = results.filter(r => r.type === 'document');
+      if (documentResults.length > 0) {
+        console.log('📄 Found document results, checking for direct answers...');
         
-        // Increment usage count for Q&A pairs
-        if (bestMatch.type === 'qa_pair') {
-          await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
+        // Look for direct answers in document content
+        const directAnswer = this.findDirectAnswerInDocuments(question, documentResults);
+        if (directAnswer) {
+          console.log('✅ Found direct answer in documents');
+          return directAnswer;
         }
+      }
+      
+      // Check if we have a very high-confidence direct match from Q&A
+      if (bestMatch.relevanceScore > 0.8 && bestMatch.type === 'qa_pair') {
+        console.log('✅ Using high-confidence Q&A match');
+        
+        await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
         
         return {
           answer: bestMatch.answer,
@@ -45,26 +55,13 @@ export class AnswerGenerationService {
         };
       }
       
-      // Check for document-specific answers that might contain exact information
-      const documentResults = results.filter(r => r.type === 'document');
-      if (documentResults.length > 0) {
-        console.log('Found document results, checking for direct answers...');
-        
-        // Look for direct answers in document content
-        const directAnswer = this.findDirectAnswerInDocuments(question, documentResults);
-        if (directAnswer) {
-          console.log('Found direct answer in documents');
-          return directAnswer;
-        }
-      }
-      
       // If we have multiple good matches, try AI synthesis
-      if (results.length > 1 && bestMatch.relevanceScore > 0.3) {
-        console.log('Attempting AI synthesis with', results.length, 'results');
+      if (results.length > 0 && bestMatch.relevanceScore > 0.2) {
+        console.log('🧠 Attempting AI synthesis with', results.length, 'results');
         
         try {
           const aiResult = await this.generateAIAnswer(question, results.slice(0, 5), conversationHistory);
-          console.log('AI synthesis successful');
+          console.log('✅ AI synthesis successful');
           
           return {
             answer: aiResult.answer,
@@ -74,9 +71,23 @@ export class AnswerGenerationService {
             aiGenerated: true,
           };
         } catch (aiError) {
-          console.error('AI generation failed, using fallback:', aiError);
+          console.error('❌ AI generation failed, using fallback:', aiError);
           
-          // Enhanced fallback synthesis
+          // Enhanced fallback synthesis for documents
+          if (documentResults.length > 0) {
+            const topDocResult = documentResults[0];
+            console.log('📄 Using top document result as fallback');
+            
+            return {
+              answer: `Based on the document "${topDocResult.source}":\n\n${topDocResult.answer}`,
+              source: topDocResult.source,
+              sourceType: 'document',
+              sourceId: topDocResult.id,
+              searchResults: results.slice(0, 3),
+            };
+          }
+          
+          // Standard fallback synthesis
           const topResults = results.slice(0, 3);
           let synthesizedAnswer = 'Based on the available information:\n\n';
           
@@ -94,7 +105,7 @@ export class AnswerGenerationService {
       }
       
       // Use the best single match
-      console.log('Using best single match');
+      console.log('✅ Using best single match');
       return {
         answer: bestMatch.answer,
         source: bestMatch.source,
@@ -104,7 +115,7 @@ export class AnswerGenerationService {
       };
     }
 
-    console.log('No good matches found, returning default response');
+    console.log('❌ No good matches found, returning default response');
     // No good match found
     return {
       answer: "I couldn't find a specific answer to your question in the current knowledge base. Here are some suggestions:\n\n1. Try rephrasing your question with different keywords\n2. Check if your question relates to company policies, procedures, or guidelines\n3. Contact your administrator if this topic should be added to the knowledge base",
@@ -116,56 +127,148 @@ export class AnswerGenerationService {
   private findDirectAnswerInDocuments(question: string, documentResults: SearchResult[]): AnswerGenerationResult | null {
     const questionLower = question.toLowerCase();
     
-    // Common patterns for extracting specific information
+    console.log('🔍 Looking for direct answers in', documentResults.length, 'documents for:', questionLower);
+    
+    // Enhanced patterns for extracting specific information
     const patterns = [
       {
+        keywords: ['equipment', 'package', 'standard', 'includes', 'included'],
+        extractMethod: (content: string) => this.extractEquipmentList(content, questionLower)
+      },
+      {
+        keywords: ['installation', 'install', 'setup', 'procedure'],
+        extractMethod: (content: string) => this.extractInstallationInfo(content, questionLower)
+      },
+      {
         keywords: ['email', 'send to', 'contact', 'report to'],
-        regex: /(?:email|send|report|contact).*?(?:to|at)\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi
+        extractMethod: (content: string) => this.extractContactInfo(content, 'email')
       },
       {
         keywords: ['phone', 'call', 'number'],
-        regex: /(?:phone|call|number|contact).*?(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)/gi
+        extractMethod: (content: string) => this.extractContactInfo(content, 'phone')
       },
       {
         keywords: ['deadline', 'due', 'within', 'hours', 'days'],
-        regex: /(?:within|due|deadline|by)\s*(\d+\s*(?:hours?|days?|weeks?))/gi
+        extractMethod: (content: string) => this.extractTimeInfo(content)
       }
     ];
 
     for (const doc of documentResults) {
-      const content = doc.answer.toLowerCase();
+      console.log(`📄 Checking document: ${doc.source} (${doc.answer.length} chars)`);
       
-      // Check if the question keywords match the content
-      const hasRelevantKeywords = patterns.some(pattern => 
-        pattern.keywords.some(keyword => questionLower.includes(keyword) && content.includes(keyword))
-      );
-
-      if (hasRelevantKeywords) {
-        // Try to extract specific information
-        for (const pattern of patterns) {
-          if (pattern.keywords.some(keyword => questionLower.includes(keyword))) {
-            const matches = [...doc.answer.matchAll(pattern.regex)];
-            if (matches.length > 0) {
-              // Found a direct match, extract surrounding context
-              const match = matches[0];
-              const matchIndex = match.index || 0;
-              const contextStart = Math.max(0, matchIndex - 100);
-              const contextEnd = Math.min(doc.answer.length, matchIndex + match[0].length + 100);
-              const context = doc.answer.substring(contextStart, contextEnd).trim();
-              
-              console.log('Direct answer extracted:', match[0]);
-              
-              return {
-                answer: context,
-                source: doc.source,
-                sourceType: 'document',
-                sourceId: doc.id,
-                searchResults: [doc],
-              };
-            }
+      for (const pattern of patterns) {
+        const hasKeyword = pattern.keywords.some(keyword => 
+          questionLower.includes(keyword) && doc.answer.toLowerCase().includes(keyword)
+        );
+        
+        if (hasKeyword) {
+          console.log(`🎯 Found matching keywords for pattern: ${pattern.keywords[0]}`);
+          
+          const extracted = pattern.extractMethod(doc.answer);
+          if (extracted) {
+            console.log('✅ Direct answer extracted successfully');
+            
+            return {
+              answer: extracted,
+              source: doc.source,
+              sourceType: 'document',
+              sourceId: doc.id,
+              searchResults: [doc],
+            };
           }
         }
       }
+    }
+    
+    console.log('❌ No direct answers found in documents');
+    return null;
+  }
+
+  private extractEquipmentList(content: string, question: string): string | null {
+    const contentLower = content.toLowerCase();
+    
+    // Look for equipment lists in various formats
+    const equipmentPatterns = [
+      /(?:standard\s+package|package\s+includes?|equipment\s+included?)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+      /(?:included\s+equipment|standard\s+equipment)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+      /(?:the\s+following\s+equipment|equipment\s+list)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis
+    ];
+    
+    for (const pattern of equipmentPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0) {
+        const equipmentText = matches[0][1]?.trim();
+        if (equipmentText && equipmentText.length > 20) {
+          console.log('📦 Found equipment list:', equipmentText.substring(0, 100));
+          
+          // Clean up the equipment list
+          const cleaned = equipmentText
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && !line.match(/^[•\-\*]\s*$/))
+            .join('\n');
+          
+          return `Based on the document, the Standard Package includes:\n\n${cleaned}`;
+        }
+      }
+    }
+    
+    // Fallback: look for any content that mentions equipment and the question terms
+    if (question.includes('standard') && question.includes('package')) {
+      const sentences = content.split(/[.!?]+/);
+      const relevantSentences = sentences.filter(sentence => 
+        sentence.toLowerCase().includes('standard') && 
+        sentence.toLowerCase().includes('package') &&
+        sentence.length > 20
+      );
+      
+      if (relevantSentences.length > 0) {
+        return relevantSentences.slice(0, 3).join('. ').trim() + '.';
+      }
+    }
+    
+    return null;
+  }
+
+  private extractInstallationInfo(content: string, question: string): string | null {
+    const installationPatterns = [
+      /(?:installation\s+procedure|installation\s+steps|how\s+to\s+install)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+      /(?:setup\s+instructions|installation\s+guide)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis
+    ];
+    
+    for (const pattern of installationPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0) {
+        const installText = matches[0][1]?.trim();
+        if (installText && installText.length > 30) {
+          return `Installation information:\n\n${installText}`;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  private extractContactInfo(content: string, type: 'email' | 'phone'): string | null {
+    const patterns = {
+      email: /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+      phone: /(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)/g
+    };
+    
+    const matches = [...content.matchAll(patterns[type])];
+    if (matches.length > 0) {
+      return `Contact ${type}: ${matches[0][1]}`;
+    }
+    
+    return null;
+  }
+
+  private extractTimeInfo(content: string): string | null {
+    const timePattern = /(?:within|due|deadline|by)\s*(\d+\s*(?:hours?|days?|weeks?))/gi;
+    const matches = [...content.matchAll(timePattern)];
+    
+    if (matches.length > 0) {
+      return `Timeframe: ${matches[0][0]}`;
     }
     
     return null;

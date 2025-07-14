@@ -43,20 +43,29 @@ serve(async (req) => {
       `${msg.role}: ${msg.content}`
     ).join('\n');
 
-    const systemPrompt = `You are a helpful AI assistant for a company knowledge base. Your job is to provide accurate, helpful answers based on the provided context from company documents and Q&A pairs.
+    const systemPrompt = `You are a helpful AI assistant for a company knowledge base. Your job is to provide accurate, helpful answers based ONLY on the provided context from company documents and Q&A pairs.
 
-Guidelines:
-- Always base your answers on the provided context
-- If you can't find relevant information in the context, say so clearly
-- Be concise but comprehensive
-- Include source references when possible
-- If there are multiple relevant sources, synthesize the information
-- Maintain a professional, helpful tone
+CRITICAL INSTRUCTIONS:
+- ONLY use information from the provided context below
+- NEVER use external knowledge or make assumptions
+- If the context doesn't contain the answer, clearly state that the information is not available
+- Be specific and direct in your answers
+- When listing equipment, procedures, or specific information, extract the exact details from the context
+- If asked about equipment in a package, list all items mentioned in the relevant section
+- Always reference the source when providing specific information
+
+CONTEXT ANALYSIS:
+- Look for section headings, bullet points, and numbered lists
+- Pay attention to specific equipment names, model numbers, and technical details
+- Extract complete lists when requested (e.g., "Standard Package includes...")
+- Identify installation procedures, contact information, and time requirements
 
 Context from company knowledge base:
 ${context}
 
-${conversationContext ? `Previous conversation context:\n${conversationContext}\n` : ''}`;
+${conversationContext ? `Previous conversation context:\n${conversationContext}\n` : ''}
+
+Remember: Only provide information that is explicitly stated in the context above. Do not add external knowledge or make assumptions.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
