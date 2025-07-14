@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { SearchResult, EnhancedSearchResult } from '@/types/knowledgeBase';
 import { calculateRelevanceScore } from '@/utils/relevanceScoring';
 import { QuestionNormalizationService } from './questionNormalization';
+import './testNormalization'; // This will run the test immediately
 
 export class KnowledgeBaseSearchService {
   static async searchEnhanced(query: string, userContext?: any): Promise<SearchResult[]> {
@@ -14,12 +15,20 @@ export class KnowledgeBaseSearchService {
     console.log('🔄 Normalized query:', normalizedQuery, 'Intent:', questionNorm.intent, 'Score:', questionNorm.semanticScore);
     
     try {
+      console.log('🔍 DEBUG: About to call ai_enhanced_search RPC with:', {
+        search_query: normalizedQuery,
+        user_context: userContext || {},
+        limit_results: 25
+      });
+      
       // Use the enhanced AI search function from the database
       const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
         search_query: normalizedQuery,
         user_context: userContext || {},
         limit_results: 25
       });
+
+      console.log('🔍 DEBUG: RPC call completed. Error:', error, 'Results:', results);
 
       if (error) {
         console.error('❌ AI enhanced search error:', error);

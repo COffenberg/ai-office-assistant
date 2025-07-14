@@ -5,14 +5,17 @@ export class QuestionNormalizationService {
     {
       patterns: [
         /how.*contact.*support.*phone/i,
+        /how.*contact.*support.*department.*phone/i,
         /what.*number.*call.*support/i,
+        /what.*number.*call.*reach.*support/i,
         /phone.*number.*support/i,
         /support.*phone.*number/i,
         /contact.*support.*phone/i,
         /how.*reach.*support/i,
         /support.*contact.*number/i,
         /call.*support.*number/i,
-        /is.*phone.*number.*support/i
+        /is.*phone.*number.*support/i,
+        /phone.*number.*available.*support/i
       ],
       canonical: 'phone number support contact',
       intent: 'support_phone',
@@ -77,11 +80,15 @@ export class QuestionNormalizationService {
     semanticScore: number;
   } {
     const cleanQuestion = question.trim().toLowerCase();
+    console.log('🔍 DEBUG: QuestionNormalizationService.normalizeQuestion called with:', cleanQuestion);
     
     // Check against semantic patterns
     for (const pattern of this.SEMANTIC_PATTERNS) {
+      console.log('🔍 DEBUG: Checking pattern:', pattern.intent);
       for (const regex of pattern.patterns) {
+        console.log('🔍 DEBUG: Testing regex:', regex.source, 'against:', cleanQuestion);
         if (regex.test(cleanQuestion)) {
+          console.log('✅ DEBUG: Pattern matched!', pattern.intent, 'returning:', pattern.canonical);
           return {
             normalized: pattern.canonical,
             intent: pattern.intent,
