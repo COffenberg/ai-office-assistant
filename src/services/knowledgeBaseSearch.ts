@@ -170,19 +170,29 @@ export class KnowledgeBaseSearchService {
   private static normalizeQuery(query: string): string {
     const queryLower = query.toLowerCase();
     
-    // Normalize phone/number related queries
-    if (queryLower.includes('number') && (queryLower.includes('call') || queryLower.includes('reach'))) {
+    // Enhanced normalization for phone/support related queries
+    if (queryLower.includes('number') && (queryLower.includes('call') || queryLower.includes('reach') || queryLower.includes('support'))) {
       console.log('🔄 Normalizing phone number query');
-      return queryLower.replace(/what\s+number\s+should\s+i\s+call/g, 'phone number')
-                      .replace(/number\s+to\s+call/g, 'phone number')
-                      .replace(/call\s+to\s+reach/g, 'phone number');
+      return queryLower.replace(/what\s+number\s+should\s+i\s+call\s+to\s+reach\s+support/g, 'support phone number')
+                      .replace(/what\s+number\s+should\s+i\s+call/g, 'support phone number')
+                      .replace(/number\s+to\s+call\s+(?:to\s+)?(?:reach\s+)?support/g, 'support phone number')
+                      .replace(/call\s+to\s+reach\s+support/g, 'support phone number')
+                      .replace(/support\s+number/g, 'support phone number');
     }
     
-    // Normalize customer communication queries
+    // Enhanced normalization for customer communication queries
     if (queryLower.includes('call') && queryLower.includes('customer')) {
       console.log('🔄 Normalizing customer call query');
-      return queryLower.replace(/why\s+should\s+you\s+call/g, 'call customer')
-                      .replace(/should\s+you\s+call/g, 'call customer');
+      return queryLower.replace(/what\s+should\s+i\s+do\s+when/g, 'when should you call customer')
+                      .replace(/why\s+should\s+you\s+call/g, 'call customer before')
+                      .replace(/should\s+you\s+call/g, 'call customer')
+                      .replace(/when.*wiring.*required/g, 'call customer before wiring');
+    }
+    
+    // Normalize wiring/installation queries
+    if (queryLower.includes('wiring') && queryLower.includes('required')) {
+      console.log('🔄 Normalizing wiring query');
+      return queryLower.replace(/what\s+should\s+i\s+do\s+when\s+wiring\s+is\s+required/g, 'call customer before wiring installation');
     }
     
     return query;
