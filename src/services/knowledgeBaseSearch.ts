@@ -154,12 +154,25 @@ export class KnowledgeBaseSearchService {
 
       console.log(`✅ Basic search found ${results.length} total results`);
       
-      // Sort by relevance and return meaningful results
+      // Enhanced sorting that prioritizes Q&A pairs over documents for good semantic matches
       const sortedResults = results
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .sort((a, b) => {
+          // If both are above threshold, prioritize Q&A pairs
+          if (a.relevanceScore > 0.6 && b.relevanceScore > 0.6) {
+            if (a.type === 'qa_pair' && b.type !== 'qa_pair') return -1;
+            if (b.type === 'qa_pair' && a.type !== 'qa_pair') return 1;
+          }
+          return b.relevanceScore - a.relevanceScore;
+        })
         .filter(result => result.relevanceScore > 0.1);
         
       console.log(`🏆 Returning ${sortedResults.length} filtered results`);
+      console.log('Top 3 results:', sortedResults.slice(0, 3).map(r => ({
+        type: r.type,
+        score: r.relevanceScore.toFixed(3),
+        preview: r.answer.substring(0, 80) + '...'
+      })));
+      
       return sortedResults;
     } catch (error) {
       console.error('💥 Basic search error:', error);
@@ -168,34 +181,84 @@ export class KnowledgeBaseSearchService {
   }
 
   private static normalizeQuery(query: string): string {
-    const queryLower = query.toLowerCase();
+    const queryLower = query.toLowerCase().trim();
+    console.log('🔄 Original query:', query);
     
-    // Enhanced normalization for phone/support related queries
-    if (queryLower.includes('number') && (queryLower.includes('call') || queryLower.includes('reach') || queryLower.includes('support'))) {
-      console.log('🔄 Normalizing phone number query');
-      return queryLower.replace(/what\s+number\s+should\s+i\s+call\s+to\s+reach\s+support/g, 'support phone number')
-                      .replace(/what\s+number\s+should\s+i\s+call/g, 'support phone number')
-                      .replace(/number\s+to\s+call\s+(?:to\s+)?(?:reach\s+)?support/g, 'support phone number')
-                      .replace(/call\s+to\s+reach\s+support/g, 'support phone number')
-                      .replace(/support\s+number/g, 'support phone number');
+    // Comprehensive normalization for phone/support contact queries
+    if (this.isPhoneSupportQuery(queryLower)) {
+      console.log('📞 Detected phone/support query - normalizing for semantic matching');
+      return this.normalizePhoneSupportQuery(queryLower);
     }
     
     // Enhanced normalization for customer communication queries
-    if (queryLower.includes('call') && queryLower.includes('customer')) {
-      console.log('🔄 Normalizing customer call query');
-      return queryLower.replace(/what\s+should\s+i\s+do\s+when/g, 'when should you call customer')
-                      .replace(/why\s+should\s+you\s+call/g, 'call customer before')
-                      .replace(/should\s+you\s+call/g, 'call customer')
-                      .replace(/when.*wiring.*required/g, 'call customer before wiring');
+    if (this.isCustomerCommunicationQuery(queryLower)) {
+      console.log('🗣️ Detected customer communication query - normalizing');
+      return this.normalizeCustomerCommunicationQuery(queryLower);
     }
     
-    // Normalize wiring/installation queries
-    if (queryLower.includes('wiring') && queryLower.includes('required')) {
-      console.log('🔄 Normalizing wiring query');
-      return queryLower.replace(/what\s+should\s+i\s+do\s+when\s+wiring\s+is\s+required/g, 'call customer before wiring installation');
+    // Normalize equipment/installation queries
+    if (this.isEquipmentQuery(queryLower)) {
+      console.log('🔧 Detected equipment query - normalizing');
+      return this.normalizeEquipmentQuery(queryLower);
     }
     
-    return query;
+    // General semantic normalization
+    return this.applyGeneralNormalization(queryLower);
+  }
+
+  private static isPhoneSupportQuery(query: string): boolean {
+    return (
+      (query.includes('phone') || query.includes('number') || query.includes('contact')) &&
+      (query.includes('support') || query.includes('call') || query.includes('reach') || query.includes('department'))
+    ) || 
+    !!query.match(/(how.*contact.*support|what.*number.*call|number.*available.*support|phone.*number.*support)/);
+  }
+
+  private static normalizePhoneSupportQuery(query: string): string {
+    return query
+      .replace(/how\s+can\s+i\s+contact\s+.*?support.*?by\s+phone/g, 'support phone number')
+      .replace(/what\s+number\s+should\s+i\s+call\s+to\s+reach\s+support/g, 'support phone number')
+      .replace(/is\s+there\s+a\s+phone\s+number\s+available\s+for.*?support/g, 'support phone number')
+      .replace(/what.*phone\s+number.*support\s+department/g, 'support phone number')
+      .replace(/contact.*support.*phone/g, 'support phone number')
+      .replace(/support.*phone.*number/g, 'support phone number')
+      .replace(/phone.*support/g, 'support phone number')
+      .replace(/call.*support/g, 'support phone number');
+  }
+
+  private static isCustomerCommunicationQuery(query: string): boolean {
+    return (query.includes('call') && query.includes('customer')) ||
+           query.includes('wiring') && (query.includes('required') || query.includes('before'));
+  }
+
+  private static normalizeCustomerCommunicationQuery(query: string): string {
+    return query
+      .replace(/what\s+should\s+i\s+do\s+when.*wiring.*required/g, 'call customer before wiring')
+      .replace(/should.*call.*customer/g, 'call customer before')
+      .replace(/call.*customer.*before/g, 'call customer before')
+      .replace(/customer.*before.*wiring/g, 'call customer before wiring');
+  }
+
+  private static isEquipmentQuery(query: string): boolean {
+    return query.includes('equipment') || query.includes('package') || 
+           query.includes('standard') || query.includes('installation');
+  }
+
+  private static normalizeEquipmentQuery(query: string): string {
+    return query
+      .replace(/what.*equipment.*included/g, 'standard equipment package')
+      .replace(/standard.*package/g, 'standard equipment package')
+      .replace(/installation.*equipment/g, 'equipment installation');
+  }
+
+  private static applyGeneralNormalization(query: string): string {
+    // Apply general semantic transformations
+    return query
+      .replace(/how\s+do\s+i/g, 'how to')
+      .replace(/what\s+is\s+the\s+process/g, 'process')
+      .replace(/can\s+you\s+tell\s+me/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private static calculateEnhancedRelevanceScore(query: string, content: string): number {

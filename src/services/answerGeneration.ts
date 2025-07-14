@@ -40,19 +40,30 @@ export class AnswerGenerationService {
         }
       }
       
-      // Check if we have a very high-confidence direct match from Q&A
-      if (bestMatch.relevanceScore > 0.8 && bestMatch.type === 'qa_pair') {
-        console.log('✅ Using high-confidence Q&A match');
+      // Prioritize Q&A pairs with enhanced scoring for semantic matches
+      const qaResults = results.filter(r => r.type === 'qa_pair');
+      if (qaResults.length > 0) {
+        const bestQA = qaResults[0];
+        console.log('🎯 Found Q&A match:', {
+          score: bestQA.relevanceScore.toFixed(3),
+          question: bestQA.question?.substring(0, 100),
+          isSemanticMatch: bestQA.relevanceScore > 0.7
+        });
         
-        await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
-        
-        return {
-          answer: bestMatch.answer,
-          source: bestMatch.source,
-          sourceType: bestMatch.type,
-          sourceId: bestMatch.id,
-          searchResults: results.slice(0, 3),
-        };
+        // Use Q&A if it has good semantic relevance (lowered threshold for better matching)
+        if (bestQA.relevanceScore > 0.7) {
+          console.log('✅ Using Q&A semantic match');
+          
+          await supabase.rpc('increment_qa_usage', { qa_id: bestQA.id });
+          
+          return {
+            answer: bestQA.answer,
+            source: bestQA.source,
+            sourceType: bestQA.type,
+            sourceId: bestQA.id,
+            searchResults: results.slice(0, 3),
+          };
+        }
       }
       
       // If we have multiple good matches, try AI synthesis
