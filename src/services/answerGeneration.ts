@@ -231,17 +231,23 @@ export class AnswerGenerationService {
   }
 
   private extractInstallationInfo(content: string, question: string): string | null {
-    const questionLower = question.toLowerCase();
+    console.log('🔧 Extracting installation info for question:', question);
     
-    // Handle "call customer" specific questions
-    if (questionLower.includes('call') && questionLower.includes('customer')) {
-      console.log('🎯 Looking for customer call information in content');
+    // Enhanced patterns for customer call requirements with broader matching
+    if (question.includes('call') && question.includes('customer')) {
+      console.log('🎯 Looking for customer call requirements');
       
-      // Look for specific patterns about calling customers
       const customerCallPatterns = [
-        /(?:call\s+the\s+customer|contact\s+customer|call\s+customer)[^.]*?(?:before|prior to|day before)[^.]*?(?:installation|appointment)/gi,
-        /(?:one\s+day\s+before|24\s+hours\s+before|day\s+prior)[^.]*?(?:call|contact)[^.]*?customer/gi,
-        /(?:customer\s+must\s+be\s+called|call\s+customer)[^.]*?(?:before|prior|advance)/gi
+        // Match "Always call the customer 1 day before" specifically
+        /always\s+call\s+(?:the\s+)?customer\s+\d+\s+day\s+before[^.]*\./gi,
+        /call\s+(?:the\s+)?customer\s+\d+\s+day\s+before[^.]*\./gi,
+        // Original broader patterns
+        /(?:always\s+)?call\s+(?:the\s+)?customer\s+.*?(?:before|prior\s+to|ahead\s+of).*?(?:installation|visit|appointment)[^.]*\./gi,
+        /(?:customer\s+)?(?:must\s+)?(?:be\s+)?(?:called|contacted)\s+.*?(?:before|prior\s+to|ahead\s+of).*?(?:installation|visit|appointment)[^.]*\./gi,
+        /(?:contact|call)\s+(?:the\s+)?customer\s+.*?(?:\d+\s+(?:hours?|days?|business\s+days?))\s+.*?(?:before|prior\s+to|ahead\s+of)[^.]*\./gi,
+        // More flexible patterns for customer communication
+        /(?:when|if)\s+.*?(?:wiring|electrical)\s+.*?(?:required|needed)[^.]*customer[^.]*\./gi,
+        /customer[^.]*(?:wiring|electrical)[^.]*(?:required|needed)[^.]*\./gi
       ];
       
       for (const pattern of customerCallPatterns) {
@@ -252,20 +258,21 @@ export class AnswerGenerationService {
           // Extract surrounding context for better understanding
           const match = matches[0][0];
           const matchIndex = content.indexOf(match);
-          const contextStart = Math.max(0, matchIndex - 100);
-          const contextEnd = Math.min(content.length, matchIndex + match.length + 100);
+          const contextStart = Math.max(0, matchIndex - 150);
+          const contextEnd = Math.min(content.length, matchIndex + match.length + 150);
           const context = content.substring(contextStart, contextEnd);
           
           return `Customer Communication Requirement:\n\n${context.trim()}`;
         }
       }
       
-      // Fallback: look for any sentence mentioning customer and call/contact
+      // Enhanced fallback: look for broader customer communication patterns
       const sentences = content.split(/[.!?]+/);
       const relevantSentences = sentences.filter(sentence => {
         const sentenceLower = sentence.toLowerCase();
         return (sentenceLower.includes('customer') && 
-                (sentenceLower.includes('call') || sentenceLower.includes('contact')) &&
+                (sentenceLower.includes('call') || sentenceLower.includes('contact') || 
+                 sentenceLower.includes('wiring') || sentenceLower.includes('before')) &&
                 sentence.length > 20);
       });
       
