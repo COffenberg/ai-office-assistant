@@ -231,6 +231,51 @@ export class AnswerGenerationService {
   }
 
   private extractInstallationInfo(content: string, question: string): string | null {
+    const questionLower = question.toLowerCase();
+    
+    // Handle "call customer" specific questions
+    if (questionLower.includes('call') && questionLower.includes('customer')) {
+      console.log('🎯 Looking for customer call information in content');
+      
+      // Look for specific patterns about calling customers
+      const customerCallPatterns = [
+        /(?:call\s+the\s+customer|contact\s+customer|call\s+customer)[^.]*?(?:before|prior to|day before)[^.]*?(?:installation|appointment)/gi,
+        /(?:one\s+day\s+before|24\s+hours\s+before|day\s+prior)[^.]*?(?:call|contact)[^.]*?customer/gi,
+        /(?:customer\s+must\s+be\s+called|call\s+customer)[^.]*?(?:before|prior|advance)/gi
+      ];
+      
+      for (const pattern of customerCallPatterns) {
+        const matches = [...content.matchAll(pattern)];
+        if (matches.length > 0) {
+          console.log('✅ Found customer call information:', matches[0][0]);
+          
+          // Extract surrounding context for better understanding
+          const match = matches[0][0];
+          const matchIndex = content.indexOf(match);
+          const contextStart = Math.max(0, matchIndex - 100);
+          const contextEnd = Math.min(content.length, matchIndex + match.length + 100);
+          const context = content.substring(contextStart, contextEnd);
+          
+          return `Customer Communication Requirement:\n\n${context.trim()}`;
+        }
+      }
+      
+      // Fallback: look for any sentence mentioning customer and call/contact
+      const sentences = content.split(/[.!?]+/);
+      const relevantSentences = sentences.filter(sentence => {
+        const sentenceLower = sentence.toLowerCase();
+        return (sentenceLower.includes('customer') && 
+                (sentenceLower.includes('call') || sentenceLower.includes('contact')) &&
+                sentence.length > 20);
+      });
+      
+      if (relevantSentences.length > 0) {
+        console.log('✅ Found relevant customer communication sentence');
+        return `Customer Communication:\n\n${relevantSentences[0].trim()}.`;
+      }
+    }
+    
+    // Standard installation procedure patterns
     const installationPatterns = [
       /(?:installation\s+procedure|installation\s+steps|how\s+to\s+install)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
       /(?:setup\s+instructions|installation\s+guide)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis
@@ -255,8 +300,35 @@ export class AnswerGenerationService {
       phone: /(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)/g
     };
     
+    // Look for contextual phone numbers (support, help desk, etc.)
+    if (type === 'phone') {
+      const contextualPatterns = [
+        /(?:support|help\s*desk|customer\s*service|technical\s*support)[^:]*?:?\s*(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)/gi,
+        /(?:call|phone|contact)[^:]*?:?\s*(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)/gi,
+        /(\b\d{3}[-.]?\d{3}[-.]?\d{4}\b)[^.]*?(?:support|help|assistance)/gi
+      ];
+      
+      for (const pattern of contextualPatterns) {
+        const matches = [...content.matchAll(pattern)];
+        if (matches.length > 0) {
+          const phoneNumber = matches[0][1];
+          console.log('📞 Found contextual phone number:', phoneNumber);
+          
+          // Find the context around the phone number
+          const matchText = matches[0][0];
+          const contextStart = Math.max(0, content.indexOf(matchText) - 50);
+          const contextEnd = Math.min(content.length, content.indexOf(matchText) + matchText.length + 50);
+          const context = content.substring(contextStart, contextEnd).trim();
+          
+          return `Support Contact Information:\n\n${context}`;
+        }
+      }
+    }
+    
+    // Standard pattern matching
     const matches = [...content.matchAll(patterns[type])];
     if (matches.length > 0) {
+      console.log(`📧 Found ${type}:`, matches[0][1]);
       return `Contact ${type}: ${matches[0][1]}`;
     }
     

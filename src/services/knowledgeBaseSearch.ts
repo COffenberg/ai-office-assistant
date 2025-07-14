@@ -7,10 +7,14 @@ export class KnowledgeBaseSearchService {
   static async searchEnhanced(query: string, userContext?: any): Promise<SearchResult[]> {
     console.log('🔍 Searching knowledge base for:', query);
     
+    // Normalize the query for better semantic matching
+    const normalizedQuery = this.normalizeQuery(query);
+    console.log('🔄 Normalized query:', normalizedQuery);
+    
     try {
       // Use the enhanced AI search function from the database
       const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
-        search_query: query,
+        search_query: normalizedQuery,
         user_context: userContext || {},
         limit_results: 25
       });
@@ -163,6 +167,27 @@ export class KnowledgeBaseSearchService {
     }
   }
 
+  private static normalizeQuery(query: string): string {
+    const queryLower = query.toLowerCase();
+    
+    // Normalize phone/number related queries
+    if (queryLower.includes('number') && (queryLower.includes('call') || queryLower.includes('reach'))) {
+      console.log('🔄 Normalizing phone number query');
+      return queryLower.replace(/what\s+number\s+should\s+i\s+call/g, 'phone number')
+                      .replace(/number\s+to\s+call/g, 'phone number')
+                      .replace(/call\s+to\s+reach/g, 'phone number');
+    }
+    
+    // Normalize customer communication queries
+    if (queryLower.includes('call') && queryLower.includes('customer')) {
+      console.log('🔄 Normalizing customer call query');
+      return queryLower.replace(/why\s+should\s+you\s+call/g, 'call customer')
+                      .replace(/should\s+you\s+call/g, 'call customer');
+    }
+    
+    return query;
+  }
+
   private static calculateEnhancedRelevanceScore(query: string, content: string): number {
     const queryLower = query.toLowerCase();
     const contentLower = content.toLowerCase();
@@ -171,6 +196,18 @@ export class KnowledgeBaseSearchService {
     
     // Exact matches get highest score
     if (contentLower.includes(queryLower)) score += 1.0;
+    
+    // Enhanced scoring for phone/support related content
+    if ((queryLower.includes('phone') || queryLower.includes('number') || queryLower.includes('call')) &&
+        (contentLower.includes('phone') || contentLower.includes('support') || contentLower.includes('contact'))) {
+      score += 0.9;
+    }
+    
+    // Enhanced scoring for customer communication
+    if ((queryLower.includes('call') && queryLower.includes('customer')) &&
+        (contentLower.includes('customer') && (contentLower.includes('call') || contentLower.includes('contact')))) {
+      score += 0.95;
+    }
     
     // Enhanced scoring for equipment and package terms
     if ((queryLower.includes('equipment') || queryLower.includes('package') || queryLower.includes('standard')) &&
