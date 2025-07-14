@@ -64,9 +64,22 @@ export class KnowledgeBaseSearchService {
   }
 
   static async searchBasic(query: string): Promise<SearchResult[]> {
-    console.log('Performing basic search for:', query);
+    console.log('🔍 Performing enhanced basic search for:', query);
     
     try {
+      // Create query variants for better matching
+      const queryTerms = query.toLowerCase().split(' ').filter(term => term.length > 2);
+      const queryVariants = [
+        query,
+        ...queryTerms,
+        // Add common equipment/package terms
+        ...(query.toLowerCase().includes('equipment') ? ['equipment'] : []),
+        ...(query.toLowerCase().includes('package') ? ['package', 'standard package'] : []),
+        ...(query.toLowerCase().includes('standard') ? ['standard', 'package'] : [])
+      ];
+
+      console.log('🔎 Search query variants:', queryVariants);
+      
       // Search Q&A pairs
       const { data: qaResults, error: qaError } = await supabase
         .from('qa_pairs')
@@ -76,22 +89,35 @@ export class KnowledgeBaseSearchService {
         .order('usage_count', { ascending: false });
 
       if (qaError) {
-        console.error('Q&A search error:', qaError);
+        console.error('❌ Q&A search error:', qaError);
       }
 
-      // Search document chunks
-      const { data: docResults, error: docError } = await supabase
-        .from('document_chunks')
-        .select(`
-          *,
-          documents!inner(*)
-        `)
-        .ilike('content', `%${query}%`)
-        .order('chunk_index');
+      // Search document chunks with multiple query variants
+      const docSearchQueries = queryVariants.map(variant => 
+        supabase
+          .from('document_chunks')
+          .select(`
+            *,
+            documents!inner(*)
+          `)
+          .ilike('content', `%${variant}%`)
+          .eq('documents.processing_status', 'processed')
+          .order('chunk_index')
+          .limit(10)
+      );
 
-      if (docError) {
-        console.error('Document search error:', docError);
-      }
+      const docResultsArray = await Promise.all(docSearchQueries);
+      
+      // Combine and deduplicate document results
+      const allDocResults = docResultsArray
+        .filter(result => !result.error)
+        .flatMap(result => result.data || []);
+      
+      const uniqueDocResults = Array.from(
+        new Map(allDocResults.map(item => [item.id, item])).values()
+      );
+
+      console.log(`📊 Found ${qaResults?.length || 0} Q&A results and ${uniqueDocResults.length} document chunks`);
 
       const results: SearchResult[] = [];
 
@@ -111,23 +137,55 @@ export class KnowledgeBaseSearchService {
       }
 
       // Add document results
-      if (docResults) {
-        docResults.forEach((chunk: any) => {
-          results.push({
-            type: 'document' as const,
-            id: chunk.documents.id,
-            answer: chunk.content,
-            source: `Document - ${chunk.documents.name}`,
-            relevanceScore: calculateRelevanceScore(query, chunk.content),
-          });
+      uniqueDocResults.forEach((chunk: any) => {
+        const enhancedScore = this.calculateEnhancedRelevanceScore(query, chunk.content);
+        results.push({
+          type: 'document' as const,
+          id: chunk.documents.id,
+          answer: chunk.content,
+          source: `Document - ${chunk.documents.name}`,
+          relevanceScore: enhancedScore,
         });
-      }
+      });
 
-      console.log(`Basic search found ${results.length} results`);
-      return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      console.log(`✅ Basic search found ${results.length} total results`);
+      
+      // Sort by relevance and return meaningful results
+      const sortedResults = results
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .filter(result => result.relevanceScore > 0.1);
+        
+      console.log(`🏆 Returning ${sortedResults.length} filtered results`);
+      return sortedResults;
     } catch (error) {
-      console.error('Basic search error:', error);
+      console.error('💥 Basic search error:', error);
       return [];
     }
+  }
+
+  private static calculateEnhancedRelevanceScore(query: string, content: string): number {
+    const queryLower = query.toLowerCase();
+    const contentLower = content.toLowerCase();
+    
+    let score = 0;
+    
+    // Exact matches get highest score
+    if (contentLower.includes(queryLower)) score += 1.0;
+    
+    // Enhanced scoring for equipment and package terms
+    if ((queryLower.includes('equipment') || queryLower.includes('package') || queryLower.includes('standard')) &&
+        (contentLower.includes('equipment') || contentLower.includes('package') || contentLower.includes('standard'))) {
+      score += 0.9;
+    }
+    
+    // Word matches
+    const queryWords = queryLower.split(' ');
+    queryWords.forEach(word => {
+      if (word.length > 2 && contentLower.includes(word)) {
+        score += 0.3;
+      }
+    });
+    
+    return score;
   }
 }
