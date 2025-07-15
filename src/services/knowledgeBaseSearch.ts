@@ -2,33 +2,22 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SearchResult, EnhancedSearchResult } from '@/types/knowledgeBase';
 import { calculateRelevanceScore } from '@/utils/relevanceScoring';
-import { QuestionNormalizationService } from './questionNormalization';
-import './testNormalization'; // This will run the test immediately
 
 export class KnowledgeBaseSearchService {
   static async searchEnhanced(query: string, userContext?: any): Promise<SearchResult[]> {
     console.log('🔍 Searching knowledge base for:', query);
     
-    // Use advanced question normalization for better semantic matching
-    const questionNorm = QuestionNormalizationService.normalizeQuestion(query);
-    const normalizedQuery = questionNorm.normalized;
-    console.log('🔄 Normalized query:', normalizedQuery, 'Intent:', questionNorm.intent, 'Score:', questionNorm.semanticScore);
+    // Normalize the query for better semantic matching
+    const normalizedQuery = this.normalizeQuery(query);
+    console.log('🔄 Normalized query:', normalizedQuery);
     
     try {
-      console.log('🔍 DEBUG: About to call ai_enhanced_search RPC with:', {
-        search_query: normalizedQuery,
-        user_context: userContext || {},
-        limit_results: 25
-      });
-      
       // Use the enhanced AI search function from the database
       const { data: results, error } = await supabase.rpc('ai_enhanced_search', {
         search_query: normalizedQuery,
         user_context: userContext || {},
         limit_results: 25
       });
-
-      console.log('🔍 DEBUG: RPC call completed. Error:', error, 'Results:', results);
 
       if (error) {
         console.error('❌ AI enhanced search error:', error);
@@ -82,33 +71,30 @@ export class KnowledgeBaseSearchService {
     console.log('🔍 Performing enhanced basic search for:', query);
     
     try {
-      // Use the advanced question normalization system for fallback search too
-      const questionNorm = QuestionNormalizationService.normalizeQuestion(query);
-      const queryVariants = QuestionNormalizationService.createQueryVariants(query);
-      console.log('🔍 Enhanced basic search with variants:', queryVariants);
+      // Create query variants for better matching
+      const queryTerms = query.toLowerCase().split(' ').filter(term => term.length > 2);
+      const queryVariants = [
+        query,
+        ...queryTerms,
+        // Add common equipment/package terms
+        ...(query.toLowerCase().includes('equipment') ? ['equipment'] : []),
+        ...(query.toLowerCase().includes('package') ? ['package', 'standard package'] : []),
+        ...(query.toLowerCase().includes('standard') ? ['standard', 'package'] : [])
+      ];
 
       console.log('🔎 Search query variants:', queryVariants);
       
-      // Search Q&A pairs with multiple query variants for better semantic matching
-      const qaSearchPromises = queryVariants.map(variant => 
-        supabase
-          .from('qa_pairs')
-          .select('*')
-          .eq('is_active', true)
-          .or(`question.ilike.%${variant}%,answer.ilike.%${variant}%,category.ilike.%${variant}%`)
-          .order('usage_count', { ascending: false })
-      );
-      
-      const qaResultsArray = await Promise.all(qaSearchPromises);
-      
-      // Combine and deduplicate Q&A results
-      const allQAResults = qaResultsArray
-        .filter(result => !result.error)
-        .flatMap(result => result.data || []);
-      
-      const uniqueQAResults = Array.from(
-        new Map(allQAResults.map(item => [item.id, item])).values()
-      );
+      // Search Q&A pairs
+      const { data: qaResults, error: qaError } = await supabase
+        .from('qa_pairs')
+        .select('*')
+        .eq('is_active', true)
+        .or(`question.ilike.%${query}%,answer.ilike.%${query}%,category.ilike.%${query}%`)
+        .order('usage_count', { ascending: false });
+
+      if (qaError) {
+        console.error('❌ Q&A search error:', qaError);
+      }
 
       // Search document chunks with multiple query variants
       const docSearchQueries = queryVariants.map(variant => 
@@ -135,13 +121,13 @@ export class KnowledgeBaseSearchService {
         new Map(allDocResults.map(item => [item.id, item])).values()
       );
 
-      console.log(`📊 Found ${uniqueQAResults?.length || 0} Q&A results and ${uniqueDocResults.length} document chunks`);
+      console.log(`📊 Found ${qaResults?.length || 0} Q&A results and ${uniqueDocResults.length} document chunks`);
 
       const results: SearchResult[] = [];
 
       // Add Q&A results
-      if (uniqueQAResults) {
-        uniqueQAResults.forEach(qa => {
+      if (qaResults) {
+        qaResults.forEach(qa => {
           results.push({
             type: 'qa_pair' as const,
             id: qa.id,

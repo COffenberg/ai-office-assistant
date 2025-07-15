@@ -2,7 +2,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SearchResult, AnswerGenerationResult } from '@/types/knowledgeBase';
 import { KnowledgeBaseSearchService } from './knowledgeBaseSearch';
-import { QuestionNormalizationService } from './questionNormalization';
 
 export class AnswerGenerationService {
   constructor(
@@ -51,8 +50,8 @@ export class AnswerGenerationService {
           isSemanticMatch: bestQA.relevanceScore > 0.7
         });
         
-        // Use Q&A if it has good semantic relevance (lowered threshold significantly for better semantic matching)
-        if (bestQA.relevanceScore > 0.5) {
+        // Use Q&A if it has good semantic relevance (lowered threshold for better matching)
+        if (bestQA.relevanceScore > 0.7) {
           console.log('✅ Using Q&A semantic match');
           
           await supabase.rpc('increment_qa_usage', { qa_id: bestQA.id });
