@@ -188,8 +188,8 @@ Error: ${error.message}`;
   return extractedText;
 }
 
-// Enhanced chunking with better content distribution
-function createIntelligentChunks(text: string, maxChunkSize: number = 800): string[] {
+// Enhanced chunking with sentence boundary preservation
+function createIntelligentChunks(text: string, maxChunkSize: number = 1000): string[] {
   console.log(`=== INTELLIGENT CHUNKING START ===`);
   console.log(`Input text length: ${text.length}`);
   
@@ -200,52 +200,99 @@ function createIntelligentChunks(text: string, maxChunkSize: number = 800): stri
   
   const chunks: string[] = [];
   
-  // Split by paragraphs first
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  // First normalize text - remove excessive whitespace but preserve structure
+  const normalizedText = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+  
+  // Split by double line breaks to get paragraphs
+  const paragraphs = normalizedText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   console.log(`Found ${paragraphs.length} paragraphs`);
   
   let currentChunk = '';
   
   for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim();
+    
     // If this paragraph alone is too big, split it by sentences
-    if (paragraph.length > maxChunkSize) {
-      const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    if (trimmedParagraph.length > maxChunkSize) {
+      console.log(`Large paragraph (${trimmedParagraph.length} chars), splitting by sentences`);
+      
+      // Split by sentence endings but keep the punctuation
+      const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+      console.log(`Split into ${sentences.length} sentences`);
       
       for (const sentence of sentences) {
         const trimmedSentence = sentence.trim();
         if (trimmedSentence.length === 0) continue;
         
-        if (currentChunk.length + trimmedSentence.length > maxChunkSize && currentChunk.length > 0) {
+        // Check if adding this sentence would exceed chunk size
+        const potentialChunk = currentChunk ? `${currentChunk}\n\n${trimmedSentence}` : trimmedSentence;
+        
+        if (potentialChunk.length > maxChunkSize && currentChunk.length > 0) {
+          // Current chunk is full, save it and start new chunk
           chunks.push(currentChunk.trim());
           currentChunk = trimmedSentence;
+        } else if (trimmedSentence.length > maxChunkSize) {
+          // This single sentence is too long, force split at word boundaries
+          if (currentChunk.length > 0) {
+            chunks.push(currentChunk.trim());
+            currentChunk = '';
+          }
+          
+          const words = trimmedSentence.split(/\s+/);
+          let wordChunk = '';
+          
+          for (const word of words) {
+            if ((wordChunk + ' ' + word).length > maxChunkSize && wordChunk.length > 0) {
+              chunks.push(wordChunk.trim());
+              wordChunk = word;
+            } else {
+              wordChunk += (wordChunk ? ' ' : '') + word;
+            }
+          }
+          
+          if (wordChunk.trim().length > 0) {
+            currentChunk = wordChunk.trim();
+          }
         } else {
-          currentChunk += (currentChunk ? '. ' : '') + trimmedSentence;
+          // Add sentence to current chunk
+          currentChunk = potentialChunk;
         }
       }
     } else {
       // Normal paragraph processing
-      if (currentChunk.length + paragraph.length > maxChunkSize && currentChunk.length > 0) {
+      const potentialChunk = currentChunk ? `${currentChunk}\n\n${trimmedParagraph}` : trimmedParagraph;
+      
+      if (potentialChunk.length > maxChunkSize && currentChunk.length > 0) {
+        // Current chunk is full, save it and start new chunk
         chunks.push(currentChunk.trim());
-        currentChunk = paragraph;
+        currentChunk = trimmedParagraph;
       } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+        // Add paragraph to current chunk
+        currentChunk = potentialChunk;
       }
     }
   }
   
-  // Add the last chunk
+  // Add the final chunk if there's content
   if (currentChunk.trim().length > 0) {
     chunks.push(currentChunk.trim());
   }
   
   // Ensure we have at least one chunk
   if (chunks.length === 0) {
-    chunks.push(text);
+    chunks.push(normalizedText);
   }
   
-  console.log(`Created ${chunks.length} chunks`);
+  console.log(`Created ${chunks.length} chunks with improved sentence boundaries`);
   chunks.forEach((chunk, index) => {
-    console.log(`Chunk ${index + 1}: ${chunk.length} chars - "${chunk.substring(0, 100)}..."`);
+    console.log(`Chunk ${index + 1}: ${chunk.length} chars`);
+    console.log(`Preview: "${chunk.substring(0, 150)}..."`);
+    console.log(`Ends with: "...${chunk.substring(Math.max(0, chunk.length - 50))}"`);
+    console.log('---');
   });
   
   return chunks;

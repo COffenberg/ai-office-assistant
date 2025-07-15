@@ -2,13 +2,14 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SearchResult, EnhancedSearchResult } from '@/types/knowledgeBase';
 import { calculateRelevanceScore } from '@/utils/relevanceScoring';
+import { normalizeQuestion } from './questionNormalization';
 
 export class KnowledgeBaseSearchService {
   static async searchEnhanced(query: string, userContext?: any): Promise<SearchResult[]> {
     console.log('🔍 Searching knowledge base for:', query);
     
     // Normalize the query for better semantic matching
-    const normalizedQuery = this.normalizeQuery(query);
+    const normalizedQuery = normalizeQuestion(query);
     console.log('🔄 Normalized query:', normalizedQuery);
     
     try {
