@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { SearchResult, AnswerGenerationResult } from '@/types/knowledgeBase';
 import { KnowledgeBaseSearchService } from './knowledgeBaseSearch';
+import { QuestionNormalizationService } from './questionNormalization';
 
 export class AnswerGenerationService {
   constructor(
@@ -40,19 +41,30 @@ export class AnswerGenerationService {
         }
       }
       
-      // Check if we have a very high-confidence direct match from Q&A
-      if (bestMatch.relevanceScore > 0.8 && bestMatch.type === 'qa_pair') {
-        console.log('✅ Using high-confidence Q&A match');
+      // Prioritize Q&A pairs with enhanced scoring for semantic matches
+      const qaResults = results.filter(r => r.type === 'qa_pair');
+      if (qaResults.length > 0) {
+        const bestQA = qaResults[0];
+        console.log('🎯 Found Q&A match:', {
+          score: bestQA.relevanceScore.toFixed(3),
+          question: bestQA.question?.substring(0, 100),
+          isSemanticMatch: bestQA.relevanceScore > 0.7
+        });
         
-        await supabase.rpc('increment_qa_usage', { qa_id: bestMatch.id });
-        
-        return {
-          answer: bestMatch.answer,
-          source: bestMatch.source,
-          sourceType: bestMatch.type,
-          sourceId: bestMatch.id,
-          searchResults: results.slice(0, 3),
-        };
+        // Use Q&A if it has good semantic relevance (lowered threshold significantly for better semantic matching)
+        if (bestQA.relevanceScore > 0.5) {
+          console.log('✅ Using Q&A semantic match');
+          
+          await supabase.rpc('increment_qa_usage', { qa_id: bestQA.id });
+          
+          return {
+            answer: bestQA.answer,
+            source: bestQA.source,
+            sourceType: bestQA.type,
+            sourceId: bestQA.id,
+            searchResults: results.slice(0, 3),
+          };
+        }
       }
       
       // If we have multiple good matches, try AI synthesis
@@ -129,113 +141,54 @@ export class AnswerGenerationService {
     
     console.log('🔍 Looking for direct answers in', documentResults.length, 'documents for:', questionLower);
     
-    // Define question types with more specific matching
-    const questionTypes = [
+    // Enhanced patterns for extracting specific information
+    const patterns = [
       {
-        type: 'customer_contact',
-        keywords: ['call', 'contact', 'customer', 'before', 'day'],
-        priority: 1
-      },
-      {
-        type: 'control_panel_location',
-        keywords: ['control', 'panel', 'unit', 'where', 'install', 'mount'],
-        priority: 1
-      },
-      {
-        type: 'app_testing',
-        keywords: ['app', 'test', 'before', 'leaving', 'site', 'sensor'],
-        priority: 1
-      },
-      {
-        type: 'post_installation',
-        keywords: ['after', 'installation', 'complete', 'customer', 'done'],
-        priority: 1
-      },
-      {
-        type: 'equipment_list',
         keywords: ['equipment', 'package', 'standard', 'includes', 'included'],
-        priority: 2
+        extractMethod: (content: string) => this.extractEquipmentList(content, questionLower)
       },
       {
-        type: 'contact_info',
-        keywords: ['email', 'send', 'report', 'contact'],
-        priority: 3
+        keywords: ['installation', 'install', 'setup', 'procedure'],
+        extractMethod: (content: string) => this.extractInstallationInfo(content, questionLower)
+      },
+      {
+        keywords: ['email', 'send to', 'contact', 'report to'],
+        extractMethod: (content: string) => this.extractContactInfo(content, 'email')
+      },
+      {
+        keywords: ['phone', 'call', 'number'],
+        extractMethod: (content: string) => this.extractContactInfo(content, 'phone')
+      },
+      {
+        keywords: ['deadline', 'due', 'within', 'hours', 'days'],
+        extractMethod: (content: string) => this.extractTimeInfo(content)
       }
     ];
 
-    // Sort documents by relevance score (best first)
-    const sortedDocs = [...documentResults].sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    for (const doc of sortedDocs) {
-      console.log(`📄 Analyzing document: ${doc.source} (${doc.answer.length} chars, score: ${doc.relevanceScore.toFixed(3)})`);
+    for (const doc of documentResults) {
+      console.log(`📄 Checking document: ${doc.source} (${doc.answer.length} chars)`);
       
-      // Try to identify question type based on keywords
-      const matchingTypes = questionTypes.filter(type => {
-        const keywordMatches = type.keywords.filter(keyword => questionLower.includes(keyword)).length;
-        return keywordMatches >= 2; // Need at least 2 keyword matches
-      }).sort((a, b) => a.priority - b.priority); // Sort by priority
-      
-      if (matchingTypes.length > 0) {
-        const questionType = matchingTypes[0];
-        console.log(`🎯 Identified question type: ${questionType.type}`);
+      for (const pattern of patterns) {
+        const hasKeyword = pattern.keywords.some(keyword => 
+          questionLower.includes(keyword) && doc.answer.toLowerCase().includes(keyword)
+        );
         
-        // Try type-specific extraction
-        let extracted = null;
-        
-        switch (questionType.type) {
-          case 'customer_contact':
-          case 'control_panel_location':
-          case 'app_testing':
-          case 'post_installation':
-            extracted = this.extractInstallationInfo(doc.answer, questionLower);
-            break;
-          case 'equipment_list':
-            extracted = this.extractEquipmentList(doc.answer, questionLower);
-            break;
-          case 'contact_info':
-            extracted = this.extractContactInfo(doc.answer, 'email');
-            break;
-        }
-        
-        if (extracted) {
-          console.log('✅ Direct answer extracted successfully using type-specific method');
+        if (hasKeyword) {
+          console.log(`🎯 Found matching keywords for pattern: ${pattern.keywords[0]}`);
           
-          return {
-            answer: extracted,
-            source: doc.source,
-            sourceType: 'document',
-            sourceId: doc.id,
-            searchResults: [doc],
-          };
+          const extracted = pattern.extractMethod(doc.answer);
+          if (extracted) {
+            console.log('✅ Direct answer extracted successfully');
+            
+            return {
+              answer: extracted,
+              source: doc.source,
+              sourceType: 'document',
+              sourceId: doc.id,
+              searchResults: [doc],
+            };
+          }
         }
-      }
-      
-      // Fallback: try generic keyword matching for any relevant content
-      console.log('🔄 Trying generic content extraction as fallback');
-      
-      const questionWords = questionLower.split(/\s+/).filter(w => w.length > 2);
-      const sentences = doc.answer.split(/[.!?]+/).filter(s => s.trim().length > 30);
-      
-      // Find sentences that contain multiple question keywords
-      const relevantSentences = sentences.filter(sentence => {
-        const sentenceLower = sentence.toLowerCase();
-        const matchingWords = questionWords.filter(word => sentenceLower.includes(word));
-        return matchingWords.length >= Math.min(2, questionWords.length);
-      });
-      
-      if (relevantSentences.length > 0) {
-        console.log('✅ Found relevant content using generic matching');
-        
-        // Take the most relevant sentences (up to 3)
-        const answer = relevantSentences.slice(0, 3).map(s => s.trim()).join('. ') + '.';
-        
-        return {
-          answer: `Based on the document:\n\n${answer}`,
-          source: doc.source,
-          sourceType: 'document',
-          sourceId: doc.id,
-          searchResults: [doc],
-        };
       }
     }
     
@@ -291,164 +244,122 @@ export class AnswerGenerationService {
 
   private extractInstallationInfo(content: string, question: string): string | null {
     console.log('🔧 Extracting installation info for question:', question);
-    console.log('📄 Content length:', content.length, 'chars');
-    console.log('📄 Content preview:', content.substring(0, 300) + '...');
+    console.log('📄 Content preview:', content.substring(0, 200) + '...');
     
-    const questionLower = question.toLowerCase();
-    
-    // Enhanced patterns for specific installation questions
-    
-    // 1. Control panel/unit installation location
-    if ((questionLower.includes('control') && questionLower.includes('unit')) || 
-        (questionLower.includes('control') && questionLower.includes('panel')) ||
-        (questionLower.includes('where') && questionLower.includes('install'))) {
-      console.log('🎯 Looking for control panel installation info');
-      
-      const controlPanelPatterns = [
-        // Look for "Mount the control panel at 1.4 meters height" type content
-        /mount\s+(?:the\s+)?control\s+panel\s+at\s+[\d.]+\s*(?:meters?|m)\s+height[^.]*\./gi,
-        /control\s+panel[^.]*(?:mount|install|place)[^.]*(?:height|meters?|m)[^.]*\./gi,
-        /(?:install|mount|place)\s+(?:the\s+)?control\s+panel[^.]*(?:height|meters?|m)[^.]*\./gi,
-        // Broader control panel installation patterns
-        /control\s+panel[^.]*(?:installation|mounting|placement)[^.]*\./gi,
-        /(?:primary|main)\s+control\s+unit[^.]*(?:installation|mounting|placement)[^.]*\./gi
-      ];
-      
-      for (const pattern of controlPanelPatterns) {
-        const matches = [...content.matchAll(pattern)];
-        if (matches.length > 0) {
-          console.log('✅ Found control panel installation info:', matches[0][0]);
-          
-          // Get the sentence and some context
-          const match = matches[0][0];
-          const sentences = content.split(/[.!?]+/);
-          const matchingSentence = sentences.find(s => s.includes(match.substring(0, 20)));
-          
-          if (matchingSentence) {
-            return `Control Panel Installation:\n\n${matchingSentence.trim()}.`;
-          }
-          
-          return `Control Panel Installation:\n\n${match}`;
-        }
-      }
-    }
-    
-    // 2. App testing before leaving site
-    if ((questionLower.includes('app') && questionLower.includes('before')) ||
-        (questionLower.includes('test') && questionLower.includes('app')) ||
-        (questionLower.includes('leaving') && questionLower.includes('site'))) {
-      console.log('🎯 Looking for app testing requirements');
-      
-      const appTestingPatterns = [
-        /(?:all\s+)?sensors?\s+should\s+be\s+tested\s+via\s+(?:the\s+)?app\s+before[^.]*\./gi,
-        /test\s+(?:all\s+)?sensors?\s+(?:via|through|in)\s+(?:the\s+)?app\s+before[^.]*\./gi,
-        /before\s+(?:final|leaving)[^.]*test[^.]*(?:sensors?|app)[^.]*\./gi,
-        /(?:sensors?|devices?)\s+(?:must\s+)?(?:be\s+)?tested[^.]*app[^.]*before[^.]*\./gi
-      ];
-      
-      for (const pattern of appTestingPatterns) {
-        const matches = [...content.matchAll(pattern)];
-        if (matches.length > 0) {
-          console.log('✅ Found app testing info:', matches[0][0]);
-          
-          const match = matches[0][0];
-          return `App Testing Requirement:\n\n${match}`;
-        }
-      }
-    }
-    
-    // 3. Customer contact requirements
-    if ((questionLower.includes('contact') && questionLower.includes('customer')) ||
-        (questionLower.includes('call') && questionLower.includes('customer')) ||
-        (questionLower.includes('customer') && questionLower.includes('before'))) {
-      console.log('🎯 Looking for customer contact requirements');
-      
-      const customerContactPatterns = [
-        // Specific "1 day before" pattern
-        /always\s+call\s+(?:the\s+)?customer\s+1\s+day\s+before[^.]*\./gi,
-        /call\s+(?:the\s+)?customer\s+1\s+day\s+before[^.]*\./gi,
-        // General customer call patterns
-        /(?:always\s+)?(?:call|contact)\s+(?:the\s+)?customer[^.]*(?:before|prior\s+to)[^.]*(?:installation|visit)[^.]*\./gi,
-        /customer\s+(?:must\s+)?(?:be\s+)?(?:called|contacted)[^.]*before[^.]*\./gi,
-        // Wiring-related customer contact
-        /(?:if|when)\s+wiring\s+is\s+required[^.]*customer[^.]*\./gi
-      ];
-      
-      for (const pattern of customerContactPatterns) {
-        const matches = [...content.matchAll(pattern)];
-        if (matches.length > 0) {
-          console.log('✅ Found customer contact info:', matches[0][0]);
-          
-          const match = matches[0][0];
-          return `Customer Contact Requirement:\n\n${match}`;
-        }
-      }
-    }
-    
-    // 4. Post-installation completion requirements
-    if ((questionLower.includes('after') && questionLower.includes('installation')) ||
-        (questionLower.includes('complete') && questionLower.includes('installation')) ||
-        (questionLower.includes('done') && questionLower.includes('customer'))) {
-      console.log('🎯 Looking for post-installation requirements');
-      
-      const postInstallationPatterns = [
-        /after\s+(?:the\s+)?installation[^.]*(?:customer|complete|done)[^.]*\./gi,
-        /(?:when|once)\s+installation\s+is\s+complete[^.]*\./gi,
-        /installation\s+(?:complete|finished)[^.]*customer[^.]*\./gi,
-        /(?:must\s+)?(?:be\s+)?done\s+(?:with\s+)?(?:the\s+)?customer\s+after[^.]*\./gi
-      ];
-      
-      for (const pattern of postInstallationPatterns) {
-        const matches = [...content.matchAll(pattern)];
-        if (matches.length > 0) {
-          console.log('✅ Found post-installation info:', matches[0][0]);
-          
-          const match = matches[0][0];
-          return `Post-Installation Requirement:\n\n${match}`;
-        }
-      }
-    }
-    
-    // 5. Wiring safety requirements
-    if (questionLower.includes('wiring') && questionLower.includes('required')) {
+    // Enhanced patterns for wiring safety requirements
+    if (question.includes('wiring') && question.includes('required')) {
       console.log('🎯 Looking for wiring safety requirements');
       
       const wiringSafetyPatterns = [
-        /if\s+wiring\s+is\s+required[^.]*turn\s+off\s+power\s+at\s+(?:the\s+)?fusebox\s+first[^.]*\./gi,
-        /when\s+wiring\s+is\s+required[^.]*power[^.]*fusebox[^.]*\./gi,
-        /wiring\s+.*?required[^.]*(?:power|fusebox|electrical\s+safety)[^.]*\./gi
+        // Primary pattern for "turn off power at the fusebox first"
+        /if\s+wiring\s+is\s+required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        /when\s+wiring\s+is\s+required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        /wiring\s+.*?required[^.]*turn\s+off\s+power\s+at\s+the\s+fusebox\s+first[^.]*\./gi,
+        // More flexible patterns for power/fusebox safety
+        /(?:turn\s+off|switch\s+off|shut\s+off)\s+(?:the\s+)?power\s+at\s+(?:the\s+)?fusebox\s+first[^.]*\./gi,
+        /always\s+turn\s+off\s+power\s+at\s+(?:the\s+)?fusebox[^.]*\./gi,
+        // Broader wiring safety patterns
+        /(?:if|when)\s+.*?wiring\s+.*?(?:required|needed)[^.]*(?:power|fusebox|electrical)[^.]*\./gi,
+        /wiring\s+.*?(?:required|needed)[^.]*(?:safety|power|fusebox)[^.]*\./gi
       ];
       
       for (const pattern of wiringSafetyPatterns) {
         const matches = [...content.matchAll(pattern)];
         if (matches.length > 0) {
-          console.log('✅ Found wiring safety info:', matches[0][0]);
+          console.log('✅ Found wiring safety information:', matches[0][0]);
           
+          // Extract surrounding context for better understanding
           const match = matches[0][0];
-          return `Wiring Safety Requirement:\n\n${match}`;
+          const matchIndex = content.indexOf(match);
+          const contextStart = Math.max(0, matchIndex - 100);
+          const contextEnd = Math.min(content.length, matchIndex + match.length + 100);
+          const context = content.substring(contextStart, contextEnd);
+          
+          return `Wiring Safety Requirement:\n\n${context.trim()}`;
+        }
+      }
+      
+      // Fallback: look for any mention of power safety during wiring
+      const sentences = content.split(/[.!?]+/);
+      const relevantSentences = sentences.filter(sentence => {
+        const sentenceLower = sentence.toLowerCase();
+        return (sentenceLower.includes('wiring') && 
+                (sentenceLower.includes('power') || sentenceLower.includes('fusebox') || 
+                 sentenceLower.includes('electrical') || sentenceLower.includes('safety')) &&
+                sentence.length > 15);
+      });
+      
+      if (relevantSentences.length > 0) {
+        console.log('✅ Found relevant wiring safety sentence');
+        return `Wiring Safety Information:\n\n${relevantSentences[0].trim()}.`;
+      }
+    }
+    
+    // Enhanced patterns for customer call requirements with broader matching
+    if (question.includes('call') && question.includes('customer')) {
+      console.log('🎯 Looking for customer call requirements');
+      
+      const customerCallPatterns = [
+        // Match "Always call the customer 1 day before" specifically
+        /always\s+call\s+(?:the\s+)?customer\s+\d+\s+day\s+before[^.]*\./gi,
+        /call\s+(?:the\s+)?customer\s+\d+\s+day\s+before[^.]*\./gi,
+        // Original broader patterns
+        /(?:always\s+)?call\s+(?:the\s+)?customer\s+.*?(?:before|prior\s+to|ahead\s+of).*?(?:installation|visit|appointment)[^.]*\./gi,
+        /(?:customer\s+)?(?:must\s+)?(?:be\s+)?(?:called|contacted)\s+.*?(?:before|prior\s+to|ahead\s+of).*?(?:installation|visit|appointment)[^.]*\./gi,
+        /(?:contact|call)\s+(?:the\s+)?customer\s+.*?(?:\d+\s+(?:hours?|days?|business\s+days?))\s+.*?(?:before|prior\s+to|ahead\s+of)[^.]*\./gi,
+        // More flexible patterns for customer communication
+        /(?:when|if)\s+.*?(?:wiring|electrical)\s+.*?(?:required|needed)[^.]*customer[^.]*\./gi,
+        /customer[^.]*(?:wiring|electrical)[^.]*(?:required|needed)[^.]*\./gi
+      ];
+      
+      for (const pattern of customerCallPatterns) {
+        const matches = [...content.matchAll(pattern)];
+        if (matches.length > 0) {
+          console.log('✅ Found customer call information:', matches[0][0]);
+          
+          // Extract surrounding context for better understanding
+          const match = matches[0][0];
+          const matchIndex = content.indexOf(match);
+          const contextStart = Math.max(0, matchIndex - 150);
+          const contextEnd = Math.min(content.length, matchIndex + match.length + 150);
+          const context = content.substring(contextStart, contextEnd);
+          
+          return `Customer Communication Requirement:\n\n${context.trim()}`;
+        }
+      }
+      
+      // Enhanced fallback: look for broader customer communication patterns
+      const sentences = content.split(/[.!?]+/);
+      const relevantSentences = sentences.filter(sentence => {
+        const sentenceLower = sentence.toLowerCase();
+        return (sentenceLower.includes('customer') && 
+                (sentenceLower.includes('call') || sentenceLower.includes('contact') || 
+                 sentenceLower.includes('wiring') || sentenceLower.includes('before')) &&
+                sentence.length > 20);
+      });
+      
+      if (relevantSentences.length > 0) {
+        console.log('✅ Found relevant customer communication sentence');
+        return `Customer Communication:\n\n${relevantSentences[0].trim()}.`;
+      }
+    }
+    
+    // Standard installation procedure patterns
+    const installationPatterns = [
+      /(?:installation\s+procedure|installation\s+steps|how\s+to\s+install)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+      /(?:setup\s+instructions|installation\s+guide)[:\s]*\n?(.*?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis
+    ];
+    
+    for (const pattern of installationPatterns) {
+      const matches = [...content.matchAll(pattern)];
+      if (matches.length > 0) {
+        const installText = matches[0][1]?.trim();
+        if (installText && installText.length > 30) {
+          return `Installation information:\n\n${installText}`;
         }
       }
     }
     
-    // Fallback: look for any installation-related content that matches question keywords
-    console.log('🔄 Using fallback extraction for installation content');
-    
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const questionWords = questionLower.split(/\s+/).filter(w => w.length > 2);
-    
-    const relevantSentences = sentences.filter(sentence => {
-      const sentenceLower = sentence.toLowerCase();
-      const matchCount = questionWords.filter(word => sentenceLower.includes(word)).length;
-      return matchCount >= Math.min(2, questionWords.length);
-    });
-    
-    if (relevantSentences.length > 0) {
-      console.log('✅ Found relevant installation sentence via fallback');
-      const bestSentence = relevantSentences[0].trim();
-      return `Installation Information:\n\n${bestSentence}.`;
-    }
-    
-    console.log('❌ No installation information found');
     return null;
   }
 

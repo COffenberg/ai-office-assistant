@@ -1,90 +1,202 @@
-// Enhanced question normalization with better pattern matching
-export function normalizeQuestion(question: string): string {
-  const questionLower = question.toLowerCase().trim();
-  
-  console.log('🔤 Normalizing question:', questionLower);
-  
-  // Customer contact patterns - expanded for better matching
-  const customerContactPatterns = [
-    /why\s+(?:must|should|do)\s+(?:you|we)\s+(?:call|contact)\s+(?:the\s+)?customer.*?(?:before|one\s+day)/i,
-    /why\s+(?:call|contact)\s+customer.*?(?:before|day)/i,
-    /customer.*?(?:call|contact).*?(?:before|day)/i,
-    /(?:call|contact).*?customer.*?(?:before|one\s+day)/i
-  ];
-  
-  for (const pattern of customerContactPatterns) {
-    if (pattern.test(questionLower)) {
-      console.log('✅ Matched customer contact pattern');
-      return 'always call the customer 1 day before installation';
+export class QuestionNormalizationService {
+  // Common question patterns mapped to canonical forms
+  private static readonly SEMANTIC_PATTERNS = [
+    // Phone/Contact Support patterns
+    {
+      patterns: [
+        /how.*contact.*support.*phone/i,
+        /how.*contact.*support.*department.*phone/i,
+        /what.*number.*call.*support/i,
+        /what.*number.*call.*reach.*support/i,
+        /phone.*number.*support/i,
+        /support.*phone.*number/i,
+        /contact.*support.*phone/i,
+        /how.*reach.*support/i,
+        /support.*contact.*number/i,
+        /call.*support.*number/i,
+        /is.*phone.*number.*support/i,
+        /phone.*number.*available.*support/i
+      ],
+      canonical: 'phone number support contact',
+      intent: 'support_phone',
+      keywords: ['phone', 'number', 'support', 'contact', 'call']
+    },
+    
+    // Customer Communication patterns
+    {
+      patterns: [
+        /call.*customer.*before/i,
+        /should.*call.*customer/i,
+        /customer.*call.*before/i,
+        /contact.*customer.*installation/i,
+        /wiring.*required.*customer/i,
+        /before.*installation.*customer/i,
+        /customer.*communication.*before/i
+      ],
+      canonical: 'call customer before installation',
+      intent: 'customer_communication',
+      keywords: ['call', 'customer', 'before', 'installation', 'wiring', 'contact']
+    },
+    
+    // Equipment/Package patterns
+    {
+      patterns: [
+        /what.*equipment.*included/i,
+        /standard.*package.*equipment/i,
+        /comes.*with.*installation/i,
+        /equipment.*package.*standard/i,
+        /included.*standard.*package/i,
+        /what.*comes.*standard/i,
+        /equipment.*list/i
+      ],
+      canonical: 'equipment package standard installation included',
+      intent: 'equipment_inquiry',
+      keywords: ['equipment', 'package', 'standard', 'installation', 'included', 'comes']
+    },
+    
+    // Process/Procedure patterns
+    {
+      patterns: [
+        /how.*to.*process/i,
+        /what.*procedure/i,
+        /steps.*to.*follow/i,
+        /what.*should.*do/i,
+        /process.*procedure/i,
+        /how.*should.*proceed/i
+      ],
+      canonical: 'process procedure steps how to',
+      intent: 'process_inquiry',
+      keywords: ['process', 'procedure', 'steps', 'how', 'should', 'do']
     }
-  }
-  
-  // Control panel/unit installation patterns
-  const controlPanelPatterns = [
-    /where\s+(?:should|must)\s+(?:the\s+)?(?:primary\s+)?control\s+(?:panel|unit)\s+be\s+(?:installed|mounted)/i,
-    /(?:primary\s+)?control\s+(?:panel|unit)\s+(?:installation|mounting)\s+(?:location|position)/i,
-    /where.*?(?:install|mount).*?control\s+(?:panel|unit)/i
   ];
-  
-  for (const pattern of controlPanelPatterns) {
-    if (pattern.test(questionLower)) {
-      console.log('✅ Matched control panel installation pattern');
-      return 'mount control panel installation location height';
-    }
-  }
-  
-  // App testing patterns
-  const appTestingPatterns = [
-    /what\s+(?:should|must)\s+(?:you|we)\s+do\s+in\s+(?:the\s+)?app\s+before\s+leaving/i,
-    /app.*?(?:before|leaving).*?(?:site|installation)/i,
-    /(?:test|check).*?app.*?before/i,
-    /sensors?.*?app.*?before/i
-  ];
-  
-  for (const pattern of appTestingPatterns) {
-    if (pattern.test(questionLower)) {
-      console.log('✅ Matched app testing pattern');
-      return 'test sensors via app before leaving installation site';
-    }
-  }
-  
-  // Post-installation completion patterns
-  const postInstallationPatterns = [
-    /what\s+(?:must|should)\s+be\s+done\s+(?:with\s+)?(?:the\s+)?customer\s+after\s+installation/i,
-    /after\s+installation.*?(?:customer|complete)/i,
-    /installation.*?(?:complete|finished).*?customer/i,
-    /(?:done|completed).*?customer.*?after/i
-  ];
-  
-  for (const pattern of postInstallationPatterns) {
-    if (pattern.test(questionLower)) {
-      console.log('✅ Matched post-installation pattern');
-      return 'what must be done with customer after installation complete';
-    }
-  }
-  
-  console.log('🔄 No specific pattern matched, returning normalized question');
-  
-  // General normalization - remove extra whitespace and punctuation
-  return questionLower
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
-// Test function for debugging
-export function testNormalization() {
-  const testQuestions = [
-    "Why must you contact the customer one day before the installation?",
-    "Where should the primary control unit be installed?",
-    "What should you do in the app before leaving the installation site?",
-    "What must be done with the customer after installation is complete?"
-  ];
-  
-  console.log('🧪 Testing question normalization:');
-  testQuestions.forEach((question, index) => {
-    console.log(`\n${index + 1}. Original: "${question}"`);
-    const normalized = normalizeQuestion(question);
-    console.log(`   Normalized: "${normalized}"`);
-  });
+  /**
+   * Normalizes a question to its canonical form and extracts semantic information
+   */
+  static normalizeQuestion(question: string): {
+    normalized: string;
+    intent: string | null;
+    keywords: string[];
+    semanticScore: number;
+  } {
+    const cleanQuestion = question.trim().toLowerCase();
+    console.log('🔍 DEBUG: QuestionNormalizationService.normalizeQuestion called with:', cleanQuestion);
+    
+    // Check against semantic patterns
+    for (const pattern of this.SEMANTIC_PATTERNS) {
+      console.log('🔍 DEBUG: Checking pattern:', pattern.intent);
+      for (const regex of pattern.patterns) {
+        console.log('🔍 DEBUG: Testing regex:', regex.source, 'against:', cleanQuestion);
+        if (regex.test(cleanQuestion)) {
+          console.log('✅ DEBUG: Pattern matched!', pattern.intent, 'returning:', pattern.canonical);
+          return {
+            normalized: pattern.canonical,
+            intent: pattern.intent,
+            keywords: pattern.keywords,
+            semanticScore: 0.95 // High semantic match
+          };
+        }
+      }
+    }
+    
+    // If no pattern matches, extract keywords and create normalized form
+    const keywords = this.extractKeywords(cleanQuestion);
+    
+    return {
+      normalized: keywords.join(' '),
+      intent: null,
+      keywords,
+      semanticScore: 0.5 // Fallback keyword matching
+    };
+  }
+
+  /**
+   * Extracts meaningful keywords from a question
+   */
+  private static extractKeywords(question: string): string[] {
+    // Remove common question words and stopwords
+    const stopwords = new Set([
+      'what', 'how', 'when', 'where', 'why', 'who', 'which', 'can', 'could',
+      'should', 'would', 'will', 'do', 'does', 'did', 'is', 'are', 'was', 'were',
+      'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
+      'with', 'by', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him',
+      'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their'
+    ]);
+    
+    return question
+      .split(/\s+/)
+      .map(word => word.replace(/[^\w]/g, ''))
+      .filter(word => word.length > 2 && !stopwords.has(word))
+      .slice(0, 8); // Limit to most important keywords
+  }
+
+  /**
+   * Creates multiple query variants for enhanced matching
+   */
+  static createQueryVariants(question: string): string[] {
+    const normalized = this.normalizeQuestion(question);
+    const variants = [question]; // Original question
+    
+    // Add normalized form
+    if (normalized.normalized !== question.toLowerCase()) {
+      variants.push(normalized.normalized);
+    }
+    
+    // Add keyword-only variant
+    if (normalized.keywords.length > 0) {
+      variants.push(normalized.keywords.join(' '));
+    }
+    
+    // Add intent-based variant if available
+    if (normalized.intent) {
+      const intentKeywords = this.getIntentKeywords(normalized.intent);
+      if (intentKeywords) {
+        variants.push(intentKeywords);
+      }
+    }
+    
+    return [...new Set(variants)]; // Remove duplicates
+  }
+
+  /**
+   * Gets the primary keywords for a specific intent
+   */
+  private static getIntentKeywords(intent: string): string | null {
+    const intentMap: Record<string, string> = {
+      'support_phone': 'phone support contact number',
+      'customer_communication': 'customer call before installation',
+      'equipment_inquiry': 'equipment package standard',
+      'process_inquiry': 'process procedure steps'
+    };
+    
+    return intentMap[intent] || null;
+  }
+
+  /**
+   * Calculates semantic similarity between two questions
+   */
+  static calculateSemanticSimilarity(question1: string, question2: string): number {
+    const norm1 = this.normalizeQuestion(question1);
+    const norm2 = this.normalizeQuestion(question2);
+    
+    // Intent match gets highest score
+    if (norm1.intent && norm1.intent === norm2.intent) {
+      return 0.95;
+    }
+    
+    // Keyword overlap scoring
+    const keywords1 = new Set(norm1.keywords);
+    const keywords2 = new Set(norm2.keywords);
+    const intersection = new Set([...keywords1].filter(k => keywords2.has(k)));
+    const union = new Set([...keywords1, ...keywords2]);
+    
+    if (union.size === 0) return 0;
+    
+    const jaccardSimilarity = intersection.size / union.size;
+    
+    // Boost score for high-quality semantic patterns
+    const semanticBoost = Math.max(norm1.semanticScore, norm2.semanticScore) - 0.5;
+    
+    return Math.min(0.9, jaccardSimilarity + semanticBoost);
+  }
 }
