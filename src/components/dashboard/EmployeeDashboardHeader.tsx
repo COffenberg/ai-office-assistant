@@ -1,7 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Settings, Home } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, LogOut, Settings } from "lucide-react";
 
 interface EmployeeDashboardHeaderProps {
   onBack: () => void;
@@ -29,14 +28,6 @@ const EmployeeDashboardHeader = ({ onBack, onLogout, isAdminUserMode = false }: 
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            {!isAdminUserMode && (
-              <Button variant="ghost" asChild>
-                <Link to="/menu" className="flex items-center space-x-2">
-                  <Home className="w-4 h-4" />
-                  <span>Menu</span>
-                </Link>
-              </Button>
-            )}
             {isAdminUserMode && (
               <Button variant="outline" onClick={onBack} className="flex items-center space-x-2">
                 <Settings className="w-4 h-4" />

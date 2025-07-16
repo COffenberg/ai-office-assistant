@@ -9,8 +9,6 @@ import AuthPortal from "./pages/AuthPortal";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
 import AcceptInvitation from "./pages/AcceptInvitation";
-import LandingMenu from "./pages/LandingMenu";
-import Hub from "./pages/Hub";
 import AdminDashboard from "./components/AdminDashboard";
 import EmployeeDashboard from "./components/EmployeeDashboard";
 import NotFound from "./pages/NotFound";
@@ -33,22 +31,6 @@ const App: React.FC = () => {
               <Route path="/signup" element={<SignUp />} />
               <Route path="/forgotpassword" element={<ForgotPassword />} />
               <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
-              <Route 
-                path="/menu" 
-                element={
-                  <ProtectedRoute requiredRole="employee">
-                    <LandingMenu />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/hub" 
-                element={
-                  <ProtectedRoute requiredRole="employee">
-                    <Hub />
-                  </ProtectedRoute>
-                } 
-              />
               <Route 
                 path="/admin" 
                 element={
