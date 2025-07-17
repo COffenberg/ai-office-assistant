@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, MessageSquare } from 'lucide-react';
+import { BookOpen, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 const LandingMenu = () => {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
 
   const menuItems = [
     {
@@ -25,6 +26,18 @@ const LandingMenu = () => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-6xl mx-auto">
+        <div className="absolute top-6 right-6">
+          <Button
+            onClick={signOut}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </Button>
+        </div>
+        
         <div className="text-center mb-12">
           <h1 className="heading-display text-foreground mb-4">
             Welcome to Your Workspace
