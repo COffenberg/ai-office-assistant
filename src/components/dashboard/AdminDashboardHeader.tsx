@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, LogOut, User, Eye } from "lucide-react";
+import BackToMenuLink from "@/components/BackToMenuLink";
 
 interface AdminDashboardHeaderProps {
   onBack: () => void;
@@ -17,7 +18,8 @@ const AdminDashboardHeader = ({
   profile 
 }: AdminDashboardHeaderProps) => {
   return (
-    <div className="bg-white shadow-sm border-b">
+    <div className="bg-white shadow-sm border-b relative">
+      <BackToMenuLink />
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">

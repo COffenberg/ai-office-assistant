@@ -28,7 +28,7 @@ const App: React.FC = () => {
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              <Route path="/" element={<Navigate to="/auth" replace />} />
+              <Route path="/" element={<Navigate to="/menu" replace />} />
               <Route path="/auth" element={<AuthPortal />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/forgotpassword" element={<ForgotPassword />} />
