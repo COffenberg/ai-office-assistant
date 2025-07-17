@@ -193,8 +193,10 @@
 @layer components {
   /* Glassmorphic card styles */
   .glass-card {
-    @apply bg-card-glass backdrop-blur border border-border-glass shadow-glass;
+    @apply backdrop-blur border shadow-glass;
     @apply transition-all duration-micro hover:shadow-hover-lift hover:-translate-y-0.5;
+    background-color: hsl(var(--card-glass));
+    border-color: hsl(var(--border-glass));
   }
 
   .glass-card-interactive {
