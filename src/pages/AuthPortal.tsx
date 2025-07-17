@@ -17,11 +17,10 @@ const AuthPortal = () => {
   const navigate = useNavigate();
   const { signIn, user, profile } = useAuth();
 
-  // Redirect authenticated users
+  // Redirect authenticated users to menu
   useEffect(() => {
     if (user && profile) {
-      const redirectTo = profile.role === 'admin' ? '/admin' : '/employee';
-      navigate(redirectTo, { replace: true });
+      navigate('/menu', { replace: true });
     }
   }, [user, profile, navigate]);
 
