@@ -11,6 +11,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import AcceptInvitation from "./pages/AcceptInvitation";
 import AdminDashboard from "./components/AdminDashboard";
 import EmployeeDashboard from "./components/EmployeeDashboard";
+import LandingMenu from "./pages/LandingMenu";
+import Hub from "./pages/Hub";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./hooks/useAuth";
@@ -31,6 +33,22 @@ const App: React.FC = () => {
               <Route path="/signup" element={<SignUp />} />
               <Route path="/forgotpassword" element={<ForgotPassword />} />
               <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
+              <Route 
+                path="/menu" 
+                element={
+                  <ProtectedRoute>
+                    <LandingMenu />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/hub" 
+                element={
+                  <ProtectedRoute>
+                    <Hub />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/admin" 
                 element={

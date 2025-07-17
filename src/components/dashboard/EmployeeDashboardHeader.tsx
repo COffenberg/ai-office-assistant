@@ -1,6 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, LogOut, Settings } from "lucide-react";
+import BackToMenuLink from "@/components/BackToMenuLink";
 
 interface EmployeeDashboardHeaderProps {
   onBack: () => void;
@@ -10,7 +11,8 @@ interface EmployeeDashboardHeaderProps {
 
 const EmployeeDashboardHeader = ({ onBack, onLogout, isAdminUserMode = false }: EmployeeDashboardHeaderProps) => {
   return (
-    <div className="bg-white shadow-sm border-b">
+    <div className="bg-white shadow-sm border-b relative">
+      <BackToMenuLink />
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
