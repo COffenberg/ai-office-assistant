@@ -2,25 +2,82 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, BookOpen, Users, BarChart3, Settings } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Plus, BookOpen, Users, BarChart3, Settings, User, Eye, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import BackToMenuLink from '@/components/BackToMenuLink';
+import EmployeeLearningHub from './EmployeeLearningHub';
 
 const AdminLearningHub = () => {
   const [activeTab, setActiveTab] = useState('courses');
+  const [isInUserView, setIsInUserView] = useState(false);
+  const { profile, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  const handleSwitchToUserView = () => {
+    setIsInUserView(true);
+  };
+
+  const handleBackToAdminView = () => {
+    setIsInUserView(false);
+  };
+
+  if (isInUserView) {
+    return <EmployeeLearningHub isAdminUserMode={true} onBackToAdmin={handleBackToAdminView} />;
+  }
 
   return (
-    <div className="pt-20 px-6 pb-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="heading-display text-foreground">Learning Hub - Admin</h1>
-          <p className="text-body text-muted-foreground">
-            Create and manage courses for your team
-          </p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-background shadow-sm border-b relative">
+        <BackToMenuLink />
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="heading-display text-foreground">Learning Hub - Admin</h1>
+              <p className="text-body text-muted-foreground">
+                Create and manage courses for your team
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {profile && (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <User className="w-4 h-4" />
+                  <span>{profile.full_name || profile.email}</span>
+                  <Badge variant="outline" className="text-xs">
+                    {profile.role}
+                  </Badge>
+                </div>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={handleSwitchToUserView}
+                className="flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Switch to User View</span>
+              </Button>
+              <Button variant="outline" onClick={handleSignOut} className="flex items-center space-x-2">
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </Button>
+            </div>
+          </div>
         </div>
-        <Button className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Create Course
-        </Button>
       </div>
+
+      {/* Content */}
+      <div className="px-6 py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <Button className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Create Course
+          </Button>
+        </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -150,6 +207,7 @@ const AdminLearningHub = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };

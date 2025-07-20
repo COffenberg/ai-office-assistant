@@ -4,25 +4,66 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, Trophy, Clock, Search } from 'lucide-react';
+import { BookOpen, Trophy, Clock, Search, LogOut, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import BackToMenuLink from '@/components/BackToMenuLink';
 
-const EmployeeLearningHub = () => {
+interface EmployeeLearningHubProps {
+  isAdminUserMode?: boolean;
+  onBackToAdmin?: () => void;
+}
+
+const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: EmployeeLearningHubProps) => {
   const [activeTab, setActiveTab] = useState('my-courses');
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
-    <div className="pt-20 px-6 pb-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="heading-display text-foreground">Learning Hub</h1>
-          <p className="text-body text-muted-foreground">
-            Continue your learning journey
-          </p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-background shadow-sm border-b relative">
+        <BackToMenuLink />
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="heading-display text-foreground">Learning Hub</h1>
+              <p className="text-body text-muted-foreground">
+                {isAdminUserMode 
+                  ? "Testing user experience as admin" 
+                  : "Continue your learning journey"
+                }
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {isAdminUserMode && onBackToAdmin && (
+                <Button variant="outline" onClick={onBackToAdmin} className="flex items-center space-x-2">
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Admin View</span>
+                </Button>
+              )}
+              {!isAdminUserMode && (
+                <Button variant="outline" onClick={handleSignOut} className="flex items-center space-x-2">
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-        <Button variant="outline" className="flex items-center gap-2">
-          <Search className="w-4 h-4" />
-          Browse Courses
-        </Button>
       </div>
+
+      {/* Content */}
+      <div className="px-6 py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <Button variant="outline" className="flex items-center gap-2">
+            <Search className="w-4 h-4" />
+            Browse Courses
+          </Button>
+        </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
@@ -178,6 +219,7 @@ const EmployeeLearningHub = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };
