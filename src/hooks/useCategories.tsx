@@ -62,6 +62,15 @@ export const useCategories = () => {
     try {
       setLoading(true);
       
+      // Get user profile to check role
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      const userRole = profileData?.role;
+
       // Fetch all categories
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
@@ -70,7 +79,19 @@ export const useCategories = () => {
 
       if (categoriesError) throw categoriesError;
 
-      // Fetch courses based on user role
+      // For non-admin users, get their access permissions
+      let allowedCategoryIds: string[] = [];
+      if (userRole !== 'admin') {
+        const { data: accessData, error: accessError } = await supabase
+          .from('student_category_access')
+          .select('category_id')
+          .eq('user_id', user.id);
+
+        if (accessError) throw accessError;
+        allowedCategoryIds = accessData?.map(access => access.category_id) || [];
+      }
+
+      // Fetch courses based on user role and permissions
       let coursesQuery = supabase
         .from('courses')
         .select(`
@@ -90,15 +111,6 @@ export const useCategories = () => {
           )
         `)
         .order('created_at', { ascending: false });
-
-      // Check user role from profile to determine what courses to show
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      const userRole = profileData?.role;
 
       // If user is not an admin, only show published courses
       if (userRole !== 'admin') {
@@ -130,15 +142,45 @@ export const useCategories = () => {
         };
       });
 
-      // Filter out categories that have no courses (for non-admin users)
-      const filteredCategories = userRole === 'admin' 
-        ? organizedCategories 
-        : organizedCategories.filter(category => {
-            const hasDirectCourses = category.courses && category.courses.length > 0;
-            const hasSubCategoryCourses = category.subCategories && 
-              category.subCategories.some(sub => sub.courses && sub.courses.length > 0);
-            return hasDirectCourses || hasSubCategoryCourses;
-          });
+      // Filter categories based on user role and permissions
+      let filteredCategories = organizedCategories;
+
+      if (userRole !== 'admin') {
+        // For non-admin users, filter based on access permissions
+        filteredCategories = organizedCategories.filter(category => {
+          // Check if user has access to this category
+          const hasDirectAccess = allowedCategoryIds.includes(category.id);
+          
+          // Check if user has access to any sub-categories
+          const accessibleSubCategories = category.subCategories?.filter(subCat => 
+            allowedCategoryIds.includes(subCat.id)
+          ) || [];
+
+          // Only include categories/sub-categories the user has access to
+          if (hasDirectAccess || accessibleSubCategories.length > 0) {
+            return {
+              ...category,
+              // Only show courses if user has direct access to this category
+              courses: hasDirectAccess ? category.courses : [],
+              // Only show accessible sub-categories
+              subCategories: accessibleSubCategories
+            };
+          }
+
+          return false;
+        }).map(category => {
+          // Filter sub-categories to only show accessible ones
+          const accessibleSubCategories = category.subCategories?.filter(subCat => 
+            allowedCategoryIds.includes(subCat.id)
+          ) || [];
+
+          return {
+            ...category,
+            courses: allowedCategoryIds.includes(category.id) ? category.courses : [],
+            subCategories: accessibleSubCategories
+          };
+        });
+      }
 
       setCategories(filteredCategories);
     } catch (error) {

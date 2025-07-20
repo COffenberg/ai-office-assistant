@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import EmployeeLearningHub from './EmployeeLearningHub';
 import CourseManagement from './CourseManagement';
+import StudentAccessManagement from './StudentAccessManagement';
 
 const AdminLearningHub = () => {
   const [activeTab, setActiveTab] = useState('courses');
@@ -111,17 +112,7 @@ const AdminLearningHub = () => {
 
 
         <TabsContent value="students" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Student Management</CardTitle>
-              <CardDescription>
-                View and manage student enrollments and progress
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Student management interface will go here</p>
-            </CardContent>
-          </Card>
+          <StudentAccessManagement />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
