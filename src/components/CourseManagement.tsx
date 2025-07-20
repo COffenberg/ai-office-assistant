@@ -1,0 +1,485 @@
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Plus, 
+  FolderPlus, 
+  BookOpen, 
+  FileText, 
+  Volume2, 
+  HelpCircle,
+  Edit,
+  Trash2,
+  ChevronRight,
+  ChevronDown
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  courses: Course[];
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  category_id: string;
+  modules: CourseModule[];
+}
+
+interface CourseModule {
+  id: string;
+  title: string;
+  description: string;
+  module_type: string;
+  content: ContentItem[];
+}
+
+interface ContentItem {
+  id: string;
+  content_type: 'document' | 'audio' | 'quiz' | 'text';
+  title: string;
+  content_data: any;
+}
+
+const CourseManagement = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [showCourseDialog, setShowCourseDialog] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  // Form states
+  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
+  const [courseForm, setCourseForm] = useState({ title: '', description: '' });
+
+  const toggleCategory = (categoryId: string) => {
+    const newOpen = new Set(openCategories);
+    if (newOpen.has(categoryId)) {
+      newOpen.delete(categoryId);
+    } else {
+      newOpen.add(categoryId);
+    }
+    setOpenCategories(newOpen);
+  };
+
+  const handleCreateCategory = () => {
+    // TODO: Implement API call to create category
+    console.log('Creating category:', categoryForm);
+    setShowCategoryDialog(false);
+    setCategoryForm({ name: '', description: '' });
+  };
+
+  const handleCreateCourse = () => {
+    // TODO: Implement API call to create course
+    console.log('Creating course:', courseForm, 'in category:', selectedCategory);
+    setShowCourseDialog(false);
+    setCourseForm({ title: '', description: '' });
+    setSelectedCategory('');
+  };
+
+  const openCourseBuilder = (course: Course) => {
+    setSelectedCourse(course);
+  };
+
+  if (selectedCourse) {
+    return <CourseBuilder course={selectedCourse} onBack={() => setSelectedCourse(null)} />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Course Management</h2>
+          <p className="text-muted-foreground">Organize your courses into categories and manage content</p>
+        </div>
+        <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <FolderPlus className="w-4 h-4" />
+              Create Category
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Category</DialogTitle>
+              <DialogDescription>
+                Categories help organize your courses by topic or department.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Category Name</label>
+                <Input
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  placeholder="e.g., Safety Training, IT Skills"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Description</label>
+                <Textarea
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  placeholder="Brief description of this category"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowCategoryDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateCategory}>
+                  Create Category
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {categories.length === 0 ? (
+        <Card className="border-dashed border-2 border-muted-foreground/25">
+          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+            <FolderPlus className="w-16 h-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Categories Yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Start by creating your first category to organize your courses
+            </p>
+            <Button onClick={() => setShowCategoryDialog(true)}>
+              Create First Category
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {categories.map((category) => (
+            <Card key={category.id}>
+              <Collapsible
+                open={openCategories.has(category.id)}
+                onOpenChange={() => toggleCategory(category.id)}
+              >
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {openCategories.has(category.id) ? (
+                          <ChevronDown className="w-5 h-5" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5" />
+                        )}
+                        <div>
+                          <CardTitle className="text-left">{category.name}</CardTitle>
+                          <CardDescription className="text-left">
+                            {category.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          {category.courses?.length || 0} courses
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCategory(category.id);
+                            setShowCourseDialog(true);
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <Separator className="mb-4" />
+                    {category.courses?.length === 0 ? (
+                      <div className="text-center py-8">
+                        <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground mb-4">No courses in this category yet</p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedCategory(category.id);
+                            setShowCourseDialog(true);
+                          }}
+                        >
+                          Add First Course
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3">
+                        {category.courses?.map((course) => (
+                          <div
+                            key={course.id}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                          >
+                            <div>
+                              <h4 className="font-medium">{course.title}</h4>
+                              <p className="text-sm text-muted-foreground">{course.description}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {course.modules?.length || 0} modules
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openCourseBuilder(course)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Create Course Dialog */}
+      <Dialog open={showCourseDialog} onOpenChange={setShowCourseDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Course</DialogTitle>
+            <DialogDescription>
+              Add a new course to the selected category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Course Title</label>
+              <Input
+                value={courseForm.title}
+                onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
+                placeholder="e.g., Workplace Safety Fundamentals"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={courseForm.description}
+                onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
+                placeholder="What will students learn in this course?"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowCourseDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateCourse}>
+                Create Course
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+// Course Builder Component
+const CourseBuilder = ({ course, onBack }: { course: Course; onBack: () => void }) => {
+  const [modules, setModules] = useState<CourseModule[]>(course.modules || []);
+  const [showModuleDialog, setShowModuleDialog] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<CourseModule | null>(null);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" onClick={onBack}>
+          ← Back to Categories
+        </Button>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">{course.title}</h2>
+          <p className="text-muted-foreground">{course.description}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5" />
+              Course Modules
+            </CardTitle>
+            <CardDescription>
+              Organize your course content into modules
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full mb-4" onClick={() => setShowModuleDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Module
+            </Button>
+            
+            {modules.length === 0 ? (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No modules added yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {modules.map((module, index) => (
+                  <div
+                    key={module.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedModule(module)}
+                  >
+                    <div>
+                      <h4 className="font-medium">{module.title}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {module.content?.length || 0} content items
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">Module {index + 1}</Badge>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Content Types</CardTitle>
+            <CardDescription>
+              Types of content you can add to modules
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3">
+              <div className="flex items-center gap-3 p-3 border rounded-lg">
+                <FileText className="w-8 h-8 text-blue-500" />
+                <div>
+                  <h4 className="font-medium">Documents</h4>
+                  <p className="text-sm text-muted-foreground">PDFs, Word docs, presentations</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 border rounded-lg">
+                <Volume2 className="w-8 h-8 text-green-500" />
+                <div>
+                  <h4 className="font-medium">Audio Files</h4>
+                  <p className="text-sm text-muted-foreground">MP3, WAV recordings and lectures</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 border rounded-lg">
+                <HelpCircle className="w-8 h-8 text-purple-500" />
+                <div>
+                  <h4 className="font-medium">Quizzes</h4>
+                  <p className="text-sm text-muted-foreground">Interactive assessments and tests</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {selectedModule && (
+        <ModuleContentManager 
+          module={selectedModule} 
+          onBack={() => setSelectedModule(null)} 
+        />
+      )}
+    </div>
+  );
+};
+
+// Module Content Manager Component
+const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack: () => void }) => {
+  const [content, setContent] = useState<ContentItem[]>(module.content || []);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack}>
+            ← Back to Modules
+          </Button>
+          <div>
+            <CardTitle>{module.title}</CardTitle>
+            <CardDescription>{module.description}</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          <Button variant="outline" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Add Document
+          </Button>
+          <Button variant="outline" className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4" />
+            Add Audio
+          </Button>
+          <Button variant="outline" className="flex items-center gap-2">
+            <HelpCircle className="w-4 h-4" />
+            Create Quiz
+          </Button>
+        </div>
+
+        {content.length === 0 ? (
+          <div className="text-center py-8">
+            <Plus className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No content added to this module yet</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {content.map((item) => (
+              <div key={item.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                {item.content_type === 'document' && <FileText className="w-5 h-5 text-blue-500" />}
+                {item.content_type === 'audio' && <Volume2 className="w-5 h-5 text-green-500" />}
+                {item.content_type === 'quiz' && <HelpCircle className="w-5 h-5 text-purple-500" />}
+                <div className="flex-1">
+                  <h4 className="font-medium">{item.title}</h4>
+                  <p className="text-sm text-muted-foreground capitalize">{item.content_type}</p>
+                </div>
+                <Button variant="ghost" size="sm">
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default CourseManagement;

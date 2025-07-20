@@ -7,6 +7,7 @@ import { Plus, BookOpen, Users, BarChart3, Settings, User, Eye, LogOut } from 'l
 import { useAuth } from '@/hooks/useAuth';
 import BackToMenuLink from '@/components/BackToMenuLink';
 import EmployeeLearningHub from './EmployeeLearningHub';
+import CourseManagement from './CourseManagement';
 
 const AdminLearningHub = () => {
   const [activeTab, setActiveTab] = useState('courses');
@@ -80,7 +81,11 @@ const AdminLearningHub = () => {
         </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="course-builder" className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Course Builder
+          </TabsTrigger>
           <TabsTrigger value="courses" className="flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Courses
@@ -98,6 +103,11 @@ const AdminLearningHub = () => {
             Settings
           </TabsTrigger>
         </TabsList>
+
+
+        <TabsContent value="course-builder" className="space-y-4">
+          <CourseManagement />
+        </TabsContent>
 
         <TabsContent value="courses" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
