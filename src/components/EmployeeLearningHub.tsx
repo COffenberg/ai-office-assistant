@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,14 +8,22 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { BookOpen, Trophy, Clock, Search, LogOut, ArrowLeft, ChevronRight, Folder, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCategories } from '@/hooks/useCategories';
+import { useCourseProgress } from '@/hooks/useCourseProgress';
 import { Link } from 'react-router-dom';
+import CourseViewer from './CourseViewer';
 
 interface EmployeeLearningHubProps {
   isAdminUserMode?: boolean;
   onBackToAdmin?: () => void;
 }
 
-const CourseCatalog = () => {
+const CourseCatalog = ({ 
+  onStartCourse, 
+  courseProgresses 
+}: { 
+  onStartCourse: (courseId: string) => void;
+  courseProgresses: Record<string, any>;
+}) => {
   const { categories, loading } = useCategories();
 
   if (loading) {
@@ -59,11 +67,16 @@ const CourseCatalog = () => {
             <AccordionContent className="space-y-4">
               {/* Direct courses in this category */}
               {category.courses && category.courses.length > 0 && (
-                <div className="space-y-2">
+                  <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">Courses</h4>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 ml-4">
                     {category.courses.map((course) => (
-                      <CourseCard key={course.id} course={course} />
+                      <CourseCard 
+                        key={course.id} 
+                        course={course} 
+                        onStartCourse={onStartCourse}
+                        courseProgress={courseProgresses[course.id]}
+                      />
                     ))}
                   </div>
                 </div>
@@ -91,7 +104,12 @@ const CourseCatalog = () => {
                           {subCategory.courses && subCategory.courses.length > 0 ? (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 ml-4">
                               {subCategory.courses.map((course) => (
-                                <CourseCard key={course.id} course={course} />
+                                <CourseCard 
+                                  key={course.id} 
+                                  course={course} 
+                                  onStartCourse={onStartCourse}
+                                  courseProgress={courseProgresses[course.id]}
+                                />
                               ))}
                             </div>
                           ) : (
@@ -111,7 +129,14 @@ const CourseCatalog = () => {
   );
 };
 
-const CourseCard = ({ course }: { course: any }) => {
+const CourseCard = ({ course, onStartCourse, courseProgress }: { 
+  course: any; 
+  onStartCourse: (courseId: string) => void;
+  courseProgress: any;
+}) => {
+  const progress = courseProgress?.progress_percentage || 0;
+  const hasStarted = courseProgress && courseProgress.status !== 'not_started';
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-2">
@@ -135,11 +160,20 @@ const CourseCard = ({ course }: { course: any }) => {
         <div className="space-y-3">
           <div className="flex justify-between text-sm">
             <span>Progress</span>
-            <span>0%</span>
+            <span>{progress}%</span>
           </div>
-          <Progress value={0} className="w-full" />
-          <Button className="w-full" disabled={!course.is_published}>
-            {course.is_published ? "Start Course" : "Coming Soon"}
+          <Progress value={progress} className="w-full" />
+          <Button 
+            className="w-full" 
+            disabled={!course.is_published}
+            onClick={() => onStartCourse(course.id)}
+          >
+            {!course.is_published 
+              ? "Coming Soon" 
+              : hasStarted 
+                ? "Continue Course" 
+                : "Start Course"
+            }
           </Button>
         </div>
       </CardContent>
@@ -149,10 +183,51 @@ const CourseCard = ({ course }: { course: any }) => {
 
 const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: EmployeeLearningHubProps) => {
   const [activeTab, setActiveTab] = useState('my-courses');
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [courseProgresses, setCourseProgresses] = useState<Record<string, any>>({});
+  const [inProgressCourses, setInProgressCourses] = useState<any[]>([]);
+  const [completedCourses, setCompletedCourses] = useState<any[]>([]);
+  
   const { signOut } = useAuth();
+  const { getAllCourseProgress } = useCourseProgress();
+
+  useEffect(() => {
+    loadProgressData();
+  }, []);
+
+  const loadProgressData = async () => {
+    try {
+      const allProgress = await getAllCourseProgress();
+      
+      // Create progress lookup
+      const progressLookup: Record<string, any> = {};
+      allProgress.forEach(progress => {
+        progressLookup[progress.course_id] = progress;
+      });
+      setCourseProgresses(progressLookup);
+
+      // Filter courses by status
+      const inProgress = allProgress.filter(p => p.status === 'in_progress');
+      const completed = allProgress.filter(p => p.status === 'completed');
+      
+      setInProgressCourses(inProgress);
+      setCompletedCourses(completed);
+    } catch (error) {
+      console.error('Error loading progress data:', error);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  const handleStartCourse = (courseId: string) => {
+    setSelectedCourse(courseId);
+  };
+
+  const handleBackFromCourse = () => {
+    setSelectedCourse(null);
+    loadProgressData(); // Refresh progress when returning
   };
 
   return (
@@ -196,12 +271,19 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
 
       {/* Content */}
       <div className="px-6 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            Browse Courses
-          </Button>
-        </div>
+        {selectedCourse ? (
+          <CourseViewer 
+            courseId={selectedCourse} 
+            onBack={handleBackFromCourse}
+          />
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <Button variant="outline" className="flex items-center gap-2">
+                <Search className="w-4 h-4" />
+                Browse Courses
+              </Button>
+            </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
@@ -220,45 +302,102 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
         </TabsList>
 
         <TabsContent value="my-courses" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Continue Learning Section */}
-            <Card className="md:col-span-2 lg:col-span-3">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Continue Learning
-                </CardTitle>
-                <CardDescription>
-                  Pick up where you left off
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+          {/* Continue Learning Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Continue Learning
+              </CardTitle>
+              <CardDescription>
+                Pick up where you left off
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {inProgressCourses.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {inProgressCourses.map((progress) => (
+                    <Card key={progress.course_id} className="hover:shadow-md transition-shadow cursor-pointer" 
+                          onClick={() => handleStartCourse(progress.course_id)}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Course in Progress</CardTitle>
+                        <CardDescription>Continue where you left off</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-sm">
+                            <span>Progress</span>
+                            <span>{progress.progress_percentage}%</span>
+                          </div>
+                          <Progress value={progress.progress_percentage} className="w-full" />
+                          <Button className="w-full">
+                            Continue Course
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
                 <div className="text-center py-8">
                   <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="font-semibold text-foreground mb-2">No courses in progress</h3>
                   <p className="text-sm text-muted-foreground mb-4">
                     Start a new course to begin your learning journey
                   </p>
-                  <Button>Browse Available Courses</Button>
+                  <Button onClick={() => setActiveTab('catalog')}>Browse Available Courses</Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Completed Courses */}
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-4">Completed Courses</h3>
-            <div className="text-center py-8">
-              <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">
-                Complete your first course to see it here
-              </p>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="w-5 h-5" />
+                Completed Courses
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {completedCourses.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {completedCourses.map((progress) => (
+                    <Card key={progress.course_id} className="hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => handleStartCourse(progress.course_id)}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary">Completed</Badge>
+                          <Trophy className="w-4 h-4 text-yellow-500" />
+                        </div>
+                        <CardTitle className="text-lg">Completed Course</CardTitle>
+                        <CardDescription>Review your completed work</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button className="w-full" variant="outline">
+                          Review Course
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-sm text-muted-foreground">
+                    Complete your first course to see it here
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="catalog" className="space-y-4">
-          <CourseCatalog />
+          <CourseCatalog 
+            onStartCourse={handleStartCourse}
+            courseProgresses={courseProgresses}
+          />
         </TabsContent>
 
         <TabsContent value="achievements" className="space-y-4">
@@ -271,7 +410,7 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
+                <div className="text-3xl font-bold">{completedCourses.length}</div>
                 <p className="text-sm text-muted-foreground">courses finished</p>
               </CardContent>
             </Card>
@@ -279,13 +418,13 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-blue-500" />
-                  Learning Time
+                  <BookOpen className="w-5 h-5 text-blue-500" />
+                  Courses in Progress
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0h</div>
-                <p className="text-sm text-muted-foreground">total time spent</p>
+                <div className="text-3xl font-bold">{inProgressCourses.length}</div>
+                <p className="text-sm text-muted-foreground">courses started</p>
               </CardContent>
             </Card>
             
@@ -293,12 +432,17 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Badge className="w-5 h-5" />
-                  Certificates
+                  Average Progress
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">0</div>
-                <p className="text-sm text-muted-foreground">certificates earned</p>
+                <div className="text-3xl font-bold">
+                  {inProgressCourses.length > 0 
+                    ? Math.round(inProgressCourses.reduce((acc, course) => acc + course.progress_percentage, 0) / inProgressCourses.length)
+                    : 0
+                  }%
+                </div>
+                <p className="text-sm text-muted-foreground">average completion</p>
               </CardContent>
             </Card>
           </div>
@@ -311,16 +455,34 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-sm text-muted-foreground">
-                  Complete courses to earn achievements
-                </p>
-              </div>
+              {completedCourses.length > 0 ? (
+                <div className="space-y-3">
+                  {completedCourses.slice(0, 5).map((progress) => (
+                    <div key={progress.course_id} className="flex items-center gap-3 p-3 border rounded-lg">
+                      <Trophy className="w-5 h-5 text-yellow-500" />
+                      <div className="flex-1">
+                        <p className="font-medium">Course Completed!</p>
+                        <p className="text-sm text-muted-foreground">
+                          Completed on {new Date(progress.completed_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-sm text-muted-foreground">
+                    Complete courses to earn achievements
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+          </>
+        )}
       </div>
     </div>
   );
