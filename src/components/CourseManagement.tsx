@@ -35,7 +35,9 @@ interface Category {
   id: string;
   name: string;
   description: string;
+  parent_category_id?: string;
   courses: Course[];
+  subCategories: Category[];
 }
 
 interface Course {
@@ -64,13 +66,17 @@ interface ContentItem {
 const CourseManagement = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [openSubCategories, setOpenSubCategories] = useState<Set<string>>(new Set());
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [showSubCategoryDialog, setShowSubCategoryDialog] = useState(false);
   const [showCourseDialog, setShowCourseDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedParentCategory, setSelectedParentCategory] = useState<string>('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
+  const [subCategoryForm, setSubCategoryForm] = useState({ name: '', description: '' });
   const [courseForm, setCourseForm] = useState({ title: '', description: '' });
 
   const toggleCategory = (categoryId: string) => {
@@ -83,11 +89,29 @@ const CourseManagement = () => {
     setOpenCategories(newOpen);
   };
 
+  const toggleSubCategory = (subCategoryId: string) => {
+    const newOpen = new Set(openSubCategories);
+    if (newOpen.has(subCategoryId)) {
+      newOpen.delete(subCategoryId);
+    } else {
+      newOpen.add(subCategoryId);
+    }
+    setOpenSubCategories(newOpen);
+  };
+
   const handleCreateCategory = () => {
     // TODO: Implement API call to create category
     console.log('Creating category:', categoryForm);
     setShowCategoryDialog(false);
     setCategoryForm({ name: '', description: '' });
+  };
+
+  const handleCreateSubCategory = () => {
+    // TODO: Implement API call to create sub-category
+    console.log('Creating sub-category:', subCategoryForm, 'under parent:', selectedParentCategory);
+    setShowSubCategoryDialog(false);
+    setSubCategoryForm({ name: '', description: '' });
+    setSelectedParentCategory('');
   };
 
   const handleCreateCourse = () => {
@@ -173,97 +197,64 @@ const CourseManagement = () => {
       ) : (
         <div className="space-y-4">
           {categories.map((category) => (
-            <Card key={category.id}>
-              <Collapsible
-                open={openCategories.has(category.id)}
-                onOpenChange={() => toggleCategory(category.id)}
-              >
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {openCategories.has(category.id) ? (
-                          <ChevronDown className="w-5 h-5" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5" />
-                        )}
-                        <div>
-                          <CardTitle className="text-left">{category.name}</CardTitle>
-                          <CardDescription className="text-left">
-                            {category.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {category.courses?.length || 0} courses
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCategory(category.id);
-                            setShowCourseDialog(true);
-                          }}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0">
-                    <Separator className="mb-4" />
-                    {category.courses?.length === 0 ? (
-                      <div className="text-center py-8">
-                        <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground mb-4">No courses in this category yet</p>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedCategory(category.id);
-                            setShowCourseDialog(true);
-                          }}
-                        >
-                          Add First Course
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="grid gap-3">
-                        {category.courses?.map((course) => (
-                          <div
-                            key={course.id}
-                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                          >
-                            <div>
-                              <h4 className="font-medium">{course.title}</h4>
-                              <p className="text-sm text-muted-foreground">{course.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">
-                                {course.modules?.length || 0} modules
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openCourseBuilder(course)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </Card>
+            <CategoryCard 
+              key={category.id} 
+              category={category}
+              openCategories={openCategories}
+              openSubCategories={openSubCategories}
+              toggleCategory={toggleCategory}
+              toggleSubCategory={toggleSubCategory}
+              onCreateCourse={(categoryId) => {
+                setSelectedCategory(categoryId);
+                setShowCourseDialog(true);
+              }}
+              onCreateSubCategory={(categoryId) => {
+                setSelectedParentCategory(categoryId);
+                setShowSubCategoryDialog(true);
+              }}
+              onEditCourse={openCourseBuilder}
+            />
           ))}
         </div>
       )}
+
+      {/* Create Sub-Category Dialog */}
+      <Dialog open={showSubCategoryDialog} onOpenChange={setShowSubCategoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Sub-Category</DialogTitle>
+            <DialogDescription>
+              Add a sub-category to organize courses within this category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Sub-Category Name</label>
+              <Input
+                value={subCategoryForm.name}
+                onChange={(e) => setSubCategoryForm({ ...subCategoryForm, name: e.target.value })}
+                placeholder="e.g., Basic Safety, Advanced Procedures"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={subCategoryForm.description}
+                onChange={(e) => setSubCategoryForm({ ...subCategoryForm, description: e.target.value })}
+                placeholder="Brief description of this sub-category"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSubCategoryDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateSubCategory}>
+                Create Sub-Category
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Course Dialog */}
       <Dialog open={showCourseDialog} onOpenChange={setShowCourseDialog}>
@@ -302,6 +293,271 @@ const CourseManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+};
+
+// Category Card Component with Sub-Categories
+interface CategoryCardProps {
+  category: Category;
+  openCategories: Set<string>;
+  openSubCategories: Set<string>;
+  toggleCategory: (id: string) => void;
+  toggleSubCategory: (id: string) => void;
+  onCreateCourse: (categoryId: string) => void;
+  onCreateSubCategory: (categoryId: string) => void;
+  onEditCourse: (course: Course) => void;
+}
+
+const CategoryCard = ({ 
+  category, 
+  openCategories, 
+  openSubCategories,
+  toggleCategory, 
+  toggleSubCategory,
+  onCreateCourse, 
+  onCreateSubCategory,
+  onEditCourse 
+}: CategoryCardProps) => {
+  const totalCourses = (category.courses?.length || 0) + 
+    (category.subCategories?.reduce((sum, sub) => sum + (sub.courses?.length || 0), 0) || 0);
+
+  return (
+    <Card>
+      <Collapsible
+        open={openCategories.has(category.id)}
+        onOpenChange={() => toggleCategory(category.id)}
+      >
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {openCategories.has(category.id) ? (
+                  <ChevronDown className="w-5 h-5" />
+                ) : (
+                  <ChevronRight className="w-5 h-5" />
+                )}
+                <div>
+                  <CardTitle className="text-left">{category.name}</CardTitle>
+                  <CardDescription className="text-left">
+                    {category.description}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  {totalCourses} courses
+                </Badge>
+                <Badge variant="outline">
+                  {category.subCategories?.length || 0} sub-categories
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateSubCategory(category.id);
+                  }}
+                  title="Add Sub-Category"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateCourse(category.id);
+                  }}
+                  title="Add Course"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            <Separator className="mb-4" />
+            
+            {/* Direct courses in this category */}
+            {category.courses?.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-medium text-sm text-muted-foreground mb-2">Direct Courses</h4>
+                <div className="grid gap-2">
+                  {category.courses.map((course) => (
+                    <div
+                      key={course.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div>
+                        <h4 className="font-medium">{course.title}</h4>
+                        <p className="text-sm text-muted-foreground">{course.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {course.modules?.length || 0} modules
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEditCourse(course)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-categories */}
+            {category.subCategories?.length > 0 && (
+              <div>
+                <h4 className="font-medium text-sm text-muted-foreground mb-2">Sub-Categories</h4>
+                <div className="space-y-2">
+                  {category.subCategories.map((subCategory) => (
+                    <SubCategoryCard
+                      key={subCategory.id}
+                      subCategory={subCategory}
+                      openSubCategories={openSubCategories}
+                      toggleSubCategory={toggleSubCategory}
+                      onCreateCourse={onCreateCourse}
+                      onEditCourse={onEditCourse}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {(category.courses?.length === 0 && category.subCategories?.length === 0) && (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">No courses or sub-categories yet</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => onCreateSubCategory(category.id)}
+                  >
+                    Add Sub-Category
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => onCreateCourse(category.id)}
+                  >
+                    Add Course
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+};
+
+// Sub-Category Card Component
+interface SubCategoryCardProps {
+  subCategory: Category;
+  openSubCategories: Set<string>;
+  toggleSubCategory: (id: string) => void;
+  onCreateCourse: (categoryId: string) => void;
+  onEditCourse: (course: Course) => void;
+}
+
+const SubCategoryCard = ({
+  subCategory,
+  openSubCategories,
+  toggleSubCategory,
+  onCreateCourse,
+  onEditCourse
+}: SubCategoryCardProps) => {
+  return (
+    <div className="border-l-2 border-muted ml-4 pl-4">
+      <Collapsible
+        open={openSubCategories.has(subCategory.id)}
+        onOpenChange={() => toggleSubCategory(subCategory.id)}
+      >
+        <CollapsibleTrigger asChild>
+          <div className="cursor-pointer hover:bg-muted/50 transition-colors rounded p-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {openSubCategories.has(subCategory.id) ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                <div>
+                  <h4 className="font-medium">{subCategory.name}</h4>
+                  <p className="text-sm text-muted-foreground">{subCategory.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {subCategory.courses?.length || 0} courses
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateCourse(subCategory.id);
+                  }}
+                  title="Add Course"
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 ml-7">
+            {subCategory.courses?.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-2">No courses in this sub-category</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onCreateCourse(subCategory.id)}
+                >
+                  Add First Course
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {subCategory.courses?.map((course) => (
+                  <div
+                    key={course.id}
+                    className="flex items-center justify-between p-2 border rounded hover:bg-muted/50 transition-colors"
+                  >
+                    <div>
+                      <h5 className="text-sm font-medium">{course.title}</h5>
+                      <p className="text-xs text-muted-foreground">{course.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {course.modules?.length || 0} modules
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditCourse(course)}
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 };
