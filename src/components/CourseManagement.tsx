@@ -39,8 +39,8 @@ import { useModules } from '@/hooks/useModules';
 import { useFileUpload } from '@/hooks/useFileUpload';
 
 const CourseManagement = () => {
-  const { categories, loading: categoriesLoading, createCategory, refetch } = useCategories();
-  const { loading: coursesLoading, createCourse, fetchCourseWithModules } = useCourses();
+  const { categories, loading: categoriesLoading, createCategory, addCategoryAttachment, refetch } = useCategories();
+  const { loading: coursesLoading, createCourse, fetchCourseWithModules, addCourseAttachment } = useCourses();
   const { loading: modulesLoading, createModule, addContentToModule } = useModules();
   const { uploading, uploadProgress, uploadFile } = useFileUpload();
   
@@ -333,8 +333,40 @@ const CategoryCard = ({
   onCreateSubCategory,
   onEditCourse 
 }: CategoryCardProps) => {
+  const { addCategoryAttachment } = useCategories();
+  const { addCourseAttachment } = useCourses();
   const totalCourses = (category.courses?.length || 0) + 
     (category.subCategories?.reduce((sum, sub) => sum + (sub.courses?.length || 0), 0) || 0);
+
+  const handleCategoryFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    try {
+      await addCategoryAttachment(category.id, file);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const handleCourseFileUpload = async (courseId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    try {
+      await addCourseAttachment(courseId, file);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
 
   return (
     <Card>
@@ -387,6 +419,23 @@ const CategoryCard = ({
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Upload Files"
+                  >
+                    <Upload className="w-4 h-4" />
+                  </Button>
+                  <input
+                    type="file"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                    onChange={handleCategoryFileUpload}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -420,6 +469,21 @@ const CategoryCard = ({
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Upload Files"
+                          >
+                            <Upload className="w-4 h-4" />
+                          </Button>
+                          <input
+                            type="file"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                            onChange={(e) => handleCourseFileUpload(course.id, e)}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -490,6 +554,38 @@ const SubCategoryCard = ({
   onCreateCourse,
   onEditCourse
 }: SubCategoryCardProps) => {
+  const { addCategoryAttachment } = useCategories();
+  const { addCourseAttachment } = useCourses();
+
+  const handleSubCategoryFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    try {
+      await addCategoryAttachment(subCategory.id, file);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const handleCourseFileUpload = async (courseId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    try {
+      await addCourseAttachment(courseId, file);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
   return (
     <div className="border-l-2 border-muted ml-4 pl-4">
       <Collapsible
@@ -525,6 +621,23 @@ const SubCategoryCard = ({
                 >
                   <Plus className="w-3 h-3" />
                 </Button>
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Upload Files"
+                  >
+                    <Upload className="w-3 h-3" />
+                  </Button>
+                  <input
+                    type="file"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                    onChange={handleSubCategoryFileUpload}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -564,6 +677,21 @@ const SubCategoryCard = ({
                       >
                         <Edit className="w-3 h-3" />
                       </Button>
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Upload Files"
+                        >
+                          <Upload className="w-3 h-3" />
+                        </Button>
+                        <input
+                          type="file"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                          onChange={(e) => handleCourseFileUpload(course.id, e)}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}

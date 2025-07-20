@@ -207,12 +207,88 @@ export const useCategories = () => {
     fetchCategories();
   }, [user]);
 
+  const addCategoryAttachment = async (categoryId: string, file: File) => {
+    try {
+      // Generate unique filename
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
+      const filePath = `categories/${categoryId}/${fileName}`;
+
+      // Upload file to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const uploadedFile = {
+        name: file.name,
+        url: urlData.publicUrl,
+        type: file.type,
+        size: file.size
+      };
+      
+      if (!uploadedFile) throw new Error('File upload failed');
+
+      const { error } = await supabase
+        .from('category_attachments')
+        .insert({
+          category_id: categoryId,
+          file_name: uploadedFile.name,
+          file_path: uploadedFile.url,
+          file_type: uploadedFile.type,
+          file_size: uploadedFile.size,
+          created_by: user?.id
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "File attached to category successfully",
+      });
+
+      fetchCategories();
+    } catch (error) {
+      console.error('Error adding category attachment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to attach file to category",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const getCategoryAttachments = async (categoryId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('category_attachments')
+        .select('*')
+        .eq('category_id', categoryId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching category attachments:', error);
+      return [];
+    }
+  };
+
   return {
     categories,
     loading,
     createCategory,
     updateCategory,
     deleteCategory,
+    addCategoryAttachment,
+    getCategoryAttachments,
     refetch: fetchCategories
   };
 };

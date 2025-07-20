@@ -55,6 +55,47 @@ export type Database = {
           },
         ]
       }
+      category_attachments: {
+        Row: {
+          category_id: string
+          created_at: string
+          created_by: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          created_by: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_attachments_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_history: {
         Row: {
           answer: string
@@ -130,6 +171,47 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_attachments: {
+        Row: {
+          course_id: string
+          created_at: string
+          created_by: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          created_by: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_attachments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]

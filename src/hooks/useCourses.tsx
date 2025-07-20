@@ -161,11 +161,90 @@ export const useCourses = () => {
     }
   };
 
+  const addCourseAttachment = async (courseId: string, file: File) => {
+    try {
+      setLoading(true);
+      
+      // Generate unique filename
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExtension}`;
+      const filePath = `courses/${courseId}/${fileName}`;
+
+      // Upload file to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const uploadedFile = {
+        name: file.name,
+        url: urlData.publicUrl,
+        type: file.type,
+        size: file.size
+      };
+      
+      if (!uploadedFile) throw new Error('File upload failed');
+
+      const { error } = await supabase
+        .from('course_attachments')
+        .insert({
+          course_id: courseId,
+          file_name: uploadedFile.name,
+          file_path: uploadedFile.url,
+          file_type: uploadedFile.type,
+          file_size: uploadedFile.size,
+          created_by: user?.id
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "File attached to course successfully",
+      });
+
+    } catch (error) {
+      console.error('Error adding course attachment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to attach file to course",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCourseAttachments = async (courseId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('course_attachments')
+        .select('*')
+        .eq('course_id', courseId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching course attachments:', error);
+      return [];
+    }
+  };
+
   return {
     loading,
     createCourse,
     updateCourse,
     deleteCourse,
-    fetchCourseWithModules
+    fetchCourseWithModules,
+    addCourseAttachment,
+    getCourseAttachments
   };
 };
