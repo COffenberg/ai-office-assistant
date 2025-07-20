@@ -37,6 +37,7 @@ import { useCategories, type Category, type Course, type CourseModule, type Cont
 import { useCourses } from '@/hooks/useCourses';
 import { useModules } from '@/hooks/useModules';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { QuizBuilder } from './QuizBuilder';
 
 const CourseManagement = () => {
   const { categories, loading: categoriesLoading, createCategory, addCategoryAttachment, refetch } = useCategories();
@@ -879,6 +880,7 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
   const [content, setContent] = useState<ContentItem[]>(module.content || []);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadType, setUploadType] = useState<'document' | 'audio'>('document');
+  const [showQuizBuilder, setShowQuizBuilder] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -950,7 +952,11 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
             <Volume2 className="w-4 h-4" />
             Add Audio
           </Button>
-          <Button variant="outline" className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => setShowQuizBuilder(true)}
+          >
             <HelpCircle className="w-4 h-4" />
             Create Quiz
           </Button>
@@ -1006,12 +1012,26 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
           </Card>
         )}
 
-        {content.length === 0 ? (
+        {/* Quiz Builder */}
+        {showQuizBuilder && (
+          <QuizBuilder
+            moduleId={module.id}
+            existingContent={content}
+            onSave={() => {
+              setShowQuizBuilder(false);
+              // Refresh content - you might want to refetch from the server
+              window.location.reload();
+            }}
+            onCancel={() => setShowQuizBuilder(false)}
+          />
+        )}
+
+        {!showQuizBuilder && content.length === 0 ? (
           <div className="text-center py-8">
             <Plus className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">No content added to this module yet</p>
           </div>
-        ) : (
+        ) : !showQuizBuilder ? (
           <div className="space-y-2">
             {content.map((item) => (
               <div key={item.id} className="flex items-center gap-3 p-3 border rounded-lg">
@@ -1031,7 +1051,7 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
