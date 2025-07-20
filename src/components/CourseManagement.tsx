@@ -431,7 +431,7 @@ const CategoryCard = ({
                   <input
                     type="file"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
                     onChange={handleCategoryFileUpload}
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -480,7 +480,7 @@ const CategoryCard = ({
                           <input
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                            accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
                             onChange={(e) => handleCourseFileUpload(course.id, e)}
                           />
                         </div>
@@ -633,7 +633,7 @@ const SubCategoryCard = ({
                   <input
                     type="file"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
                     onChange={handleSubCategoryFileUpload}
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -688,7 +688,7 @@ const SubCategoryCard = ({
                         <input
                           type="file"
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a"
+                          accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
                           onChange={(e) => handleCourseFileUpload(course.id, e)}
                         />
                       </div>
@@ -970,13 +970,13 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
                 <div>
                   <Input
                     type="file"
-                    accept={uploadType === 'document' ? '.pdf,.doc,.docx,.ppt,.pptx' : '.mp3,.wav,.m4a'}
+                    accept={uploadType === 'document' ? '.pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.svg' : '.mp3,.wav,.m4a'}
                     onChange={handleFileUpload}
                     disabled={uploading}
                   />
                   <p className="text-sm text-muted-foreground mt-1">
                     {uploadType === 'document' 
-                      ? 'Supported formats: PDF, DOC, DOCX, PPT, PPTX' 
+                      ? 'Supported formats: PDF, DOC, DOCX, PPT, PPTX, JPG, PNG, GIF, WEBP, SVG' 
                       : 'Supported formats: MP3, WAV, M4A'
                     }
                   </p>
