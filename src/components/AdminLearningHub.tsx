@@ -81,14 +81,10 @@ const AdminLearningHub = () => {
         </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="course-builder" className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
-            Course Builder
-          </TabsTrigger>
-          <TabsTrigger value="courses" className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4" />
-            Courses
+            Course Management
           </TabsTrigger>
           <TabsTrigger value="students" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -109,37 +105,6 @@ const AdminLearningHub = () => {
           <CourseManagement />
         </TabsContent>
 
-        <TabsContent value="courses" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="border-dashed border-2 border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors cursor-pointer">
-              <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-                <Plus className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="font-semibold text-foreground">Create New Course</h3>
-                <p className="text-sm text-muted-foreground">
-                  Start building a new learning experience
-                </p>
-              </CardContent>
-            </Card>
-            
-            {/* Placeholder for existing courses */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Sample Course</CardTitle>
-                <CardDescription>
-                  This is what a course card will look like
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">0 students enrolled</span>
-                  <Button variant="outline" size="sm">
-                    Edit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         <TabsContent value="students" className="space-y-4">
           <Card>
