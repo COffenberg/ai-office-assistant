@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { 
   Plus, 
   FolderPlus, 
@@ -15,7 +16,9 @@ import {
   Edit,
   Trash2,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -30,41 +33,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-
-interface Category {
-  id: string;
-  name: string;
-  description: string;
-  parent_category_id?: string;
-  courses: Course[];
-  subCategories: Category[];
-}
-
-interface Course {
-  id: string;
-  title: string;
-  description: string;
-  category_id: string;
-  modules: CourseModule[];
-}
-
-interface CourseModule {
-  id: string;
-  title: string;
-  description: string;
-  module_type: string;
-  content: ContentItem[];
-}
-
-interface ContentItem {
-  id: string;
-  content_type: 'document' | 'audio' | 'quiz' | 'text';
-  title: string;
-  content_data: any;
-}
+import { useCategories, type Category, type Course, type CourseModule, type ContentItem } from '@/hooks/useCategories';
+import { useCourses } from '@/hooks/useCourses';
+import { useModules } from '@/hooks/useModules';
+import { useFileUpload } from '@/hooks/useFileUpload';
 
 const CourseManagement = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const { categories, loading: categoriesLoading, createCategory, refetch } = useCategories();
+  const { loading: coursesLoading, createCourse, fetchCourseWithModules } = useCourses();
+  const { loading: modulesLoading, createModule, addContentToModule } = useModules();
+  const { uploading, uploadProgress, uploadFile } = useFileUpload();
+  
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
   const [openSubCategories, setOpenSubCategories] = useState<Set<string>>(new Set());
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -99,32 +78,55 @@ const CourseManagement = () => {
     setOpenSubCategories(newOpen);
   };
 
-  const handleCreateCategory = () => {
-    // TODO: Implement API call to create category
-    console.log('Creating category:', categoryForm);
-    setShowCategoryDialog(false);
-    setCategoryForm({ name: '', description: '' });
+  const handleCreateCategory = async () => {
+    try {
+      await createCategory(categoryForm.name, categoryForm.description);
+      setShowCategoryDialog(false);
+      setCategoryForm({ name: '', description: '' });
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
-  const handleCreateSubCategory = () => {
-    // TODO: Implement API call to create sub-category
-    console.log('Creating sub-category:', subCategoryForm, 'under parent:', selectedParentCategory);
-    setShowSubCategoryDialog(false);
-    setSubCategoryForm({ name: '', description: '' });
-    setSelectedParentCategory('');
+  const handleCreateSubCategory = async () => {
+    try {
+      await createCategory(subCategoryForm.name, subCategoryForm.description, selectedParentCategory);
+      setShowSubCategoryDialog(false);
+      setSubCategoryForm({ name: '', description: '' });
+      setSelectedParentCategory('');
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
-  const handleCreateCourse = () => {
-    // TODO: Implement API call to create course
-    console.log('Creating course:', courseForm, 'in category:', selectedCategory);
-    setShowCourseDialog(false);
-    setCourseForm({ title: '', description: '' });
-    setSelectedCategory('');
+  const handleCreateCourse = async () => {
+    try {
+      await createCourse(courseForm.title, courseForm.description, selectedCategory);
+      setShowCourseDialog(false);
+      setCourseForm({ title: '', description: '' });
+      setSelectedCategory('');
+      refetch(); // Refresh categories to show new course
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
-  const openCourseBuilder = (course: Course) => {
-    setSelectedCourse(course);
+  const openCourseBuilder = async (course: Course) => {
+    try {
+      const fullCourse = await fetchCourseWithModules(course.id);
+      setSelectedCourse(fullCourse as Course);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
+
+  if (categoriesLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (selectedCourse) {
     return <CourseBuilder course={selectedCourse} onBack={() => setSelectedCourse(null)} />;
@@ -172,8 +174,11 @@ const CourseManagement = () => {
                 <Button variant="outline" onClick={() => setShowCategoryDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateCategory}>
-                  Create Category
+                <Button 
+                  onClick={handleCreateCategory}
+                  disabled={categoriesLoading || !categoryForm.name.trim()}
+                >
+                  {categoriesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Category"}
                 </Button>
               </div>
             </div>
@@ -189,7 +194,10 @@ const CourseManagement = () => {
             <p className="text-muted-foreground mb-4">
               Start by creating your first category to organize your courses
             </p>
-            <Button onClick={() => setShowCategoryDialog(true)}>
+            <Button 
+              onClick={() => setShowCategoryDialog(true)}
+              disabled={categoriesLoading}
+            >
               Create First Category
             </Button>
           </CardContent>
@@ -248,8 +256,11 @@ const CourseManagement = () => {
               <Button variant="outline" onClick={() => setShowSubCategoryDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateSubCategory}>
-                Create Sub-Category
+              <Button 
+                onClick={handleCreateSubCategory}
+                disabled={categoriesLoading || !subCategoryForm.name.trim()}
+              >
+                {categoriesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Sub-Category"}
               </Button>
             </div>
           </div>
@@ -286,8 +297,11 @@ const CourseManagement = () => {
               <Button variant="outline" onClick={() => setShowCourseDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateCourse}>
-                Create Course
+              <Button 
+                onClick={handleCreateCourse}
+                disabled={coursesLoading || !courseForm.title.trim()}
+              >
+                {coursesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Course"}
               </Button>
             </div>
           </div>
@@ -564,9 +578,24 @@ const SubCategoryCard = ({
 
 // Course Builder Component
 const CourseBuilder = ({ course, onBack }: { course: Course; onBack: () => void }) => {
+  const { loading: modulesLoading, createModule } = useModules();
   const [modules, setModules] = useState<CourseModule[]>(course.modules || []);
   const [showModuleDialog, setShowModuleDialog] = useState(false);
   const [selectedModule, setSelectedModule] = useState<CourseModule | null>(null);
+  const [moduleForm, setModuleForm] = useState({ title: '', description: '' });
+
+  const handleCreateModule = async () => {
+    try {
+      const newModule = await createModule(course.id, moduleForm.title, moduleForm.description);
+      if (newModule) {
+        setModules([...modules, { ...newModule, content: [] }]);
+        setShowModuleDialog(false);
+        setModuleForm({ title: '', description: '' });
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -664,6 +693,47 @@ const CourseBuilder = ({ course, onBack }: { course: Course; onBack: () => void 
         </Card>
       </div>
 
+      {/* Create Module Dialog */}
+      <Dialog open={showModuleDialog} onOpenChange={setShowModuleDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Module</DialogTitle>
+            <DialogDescription>
+              Add a new learning module to organize your course content.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Module Title</label>
+              <Input
+                value={moduleForm.title}
+                onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
+                placeholder="e.g., Introduction to Safety Protocols"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={moduleForm.description}
+                onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
+                placeholder="What will this module cover?"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowModuleDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateModule}
+                disabled={modulesLoading || !moduleForm.title.trim()}
+              >
+                {modulesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Module"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {selectedModule && (
         <ModuleContentManager 
           module={selectedModule} 
@@ -676,7 +746,42 @@ const CourseBuilder = ({ course, onBack }: { course: Course; onBack: () => void 
 
 // Module Content Manager Component
 const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack: () => void }) => {
+  const { addContentToModule } = useModules();
+  const { uploading, uploadProgress, uploadFile } = useFileUpload();
   const [content, setContent] = useState<ContentItem[]>(module.content || []);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadType, setUploadType] = useState<'document' | 'audio'>('document');
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const uploadedFile = await uploadFile(file);
+    
+    if (uploadedFile) {
+      try {
+        const contentData = {
+          title: file.name,
+          url: uploadedFile.url,
+          fileName: uploadedFile.name,
+          fileSize: uploadedFile.size,
+          fileType: uploadedFile.type
+        };
+
+        const newContent = await addContentToModule(module.id, uploadType, contentData);
+        if (newContent) {
+          setContent([...content, newContent as ContentItem]);
+          setShowFileUpload(false);
+        }
+      } catch (error) {
+        // Error handling is done in the hook
+      }
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
 
   return (
     <Card>
@@ -693,11 +798,27 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 md:grid-cols-3 mb-6">
-          <Button variant="outline" className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => {
+              setUploadType('document');
+              setShowFileUpload(true);
+            }}
+            disabled={uploading}
+          >
             <FileText className="w-4 h-4" />
             Add Document
           </Button>
-          <Button variant="outline" className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => {
+              setUploadType('audio');
+              setShowFileUpload(true);
+            }}
+            disabled={uploading}
+          >
             <Volume2 className="w-4 h-4" />
             Add Audio
           </Button>
@@ -706,6 +827,56 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
             Create Quiz
           </Button>
         </div>
+
+        {/* File Upload Section */}
+        {showFileUpload && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                Upload {uploadType === 'document' ? 'Document' : 'Audio File'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Input
+                    type="file"
+                    accept={uploadType === 'document' ? '.pdf,.doc,.docx,.ppt,.pptx' : '.mp3,.wav,.m4a'}
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {uploadType === 'document' 
+                      ? 'Supported formats: PDF, DOC, DOCX, PPT, PPTX' 
+                      : 'Supported formats: MP3, WAV, M4A'
+                    }
+                  </p>
+                </div>
+                
+                {uploading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Uploading...</span>
+                    </div>
+                    <Progress value={uploadProgress} className="w-full" />
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowFileUpload(false)}
+                    disabled={uploading}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {content.length === 0 ? (
           <div className="text-center py-8">
@@ -720,7 +891,7 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
                 {item.content_type === 'audio' && <Volume2 className="w-5 h-5 text-green-500" />}
                 {item.content_type === 'quiz' && <HelpCircle className="w-5 h-5 text-purple-500" />}
                 <div className="flex-1">
-                  <h4 className="font-medium">{item.title}</h4>
+                  <h4 className="font-medium">{item.content_data?.title || `${item.content_type} content`}</h4>
                   <p className="text-sm text-muted-foreground capitalize">{item.content_type}</p>
                 </div>
                 <Button variant="ghost" size="sm">

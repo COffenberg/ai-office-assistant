@@ -1,0 +1,218 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { toast } from '@/hooks/use-toast';
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string;
+  parent_category_id?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  order_index: number;
+  courses?: Course[];
+  subCategories?: Category[];
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  category_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  is_published: boolean;
+  modules?: CourseModule[];
+}
+
+export interface CourseModule {
+  id: string;
+  course_id: string;
+  title: string;
+  description: string;
+  order_index: number;
+  module_type: string;
+  created_at: string;
+  updated_at: string;
+  content?: ContentItem[];
+}
+
+export interface ContentItem {
+  id: string;
+  module_id: string;
+  content_type: 'document' | 'audio' | 'quiz' | 'text';
+  content_data: any;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+  title?: string; // Optional title derived from content_data
+}
+
+export const useCategories = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const fetchCategories = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      
+      // Fetch all categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('order_index', { ascending: true });
+
+      if (categoriesError) throw categoriesError;
+
+      // Fetch all courses
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (coursesError) throw coursesError;
+
+      // Organize data hierarchically
+      const parentCategories = categoriesData?.filter(cat => !cat.parent_category_id) || [];
+      const subCategories = categoriesData?.filter(cat => cat.parent_category_id) || [];
+
+      const organizedCategories = parentCategories.map(category => {
+        const categorySubCategories = subCategories.filter(sub => sub.parent_category_id === category.id);
+        const categoryCourses = coursesData?.filter(course => course.category_id === category.id) || [];
+        
+        const subCategoriesWithCourses = categorySubCategories.map(subCat => ({
+          ...subCat,
+          courses: coursesData?.filter(course => course.category_id === subCat.id) || [],
+          subCategories: []
+        }));
+
+        return {
+          ...category,
+          courses: categoryCourses,
+          subCategories: subCategoriesWithCourses
+        };
+      });
+
+      setCategories(organizedCategories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch categories",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createCategory = async (name: string, description: string, parentCategoryId?: string) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          name,
+          description,
+          parent_category_id: parentCategoryId || null,
+          created_by: user.id,
+          order_index: 0
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${parentCategoryId ? 'Sub-category' : 'Category'} created successfully`,
+      });
+
+      fetchCategories(); // Refresh the list
+      return data;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      toast({
+        title: "Error",
+        description: `Failed to create ${parentCategoryId ? 'sub-category' : 'category'}`,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category updated successfully",
+      });
+
+      fetchCategories();
+      return data;
+    } catch (error) {
+      console.error('Error updating category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update category",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category deleted successfully",
+      });
+
+      fetchCategories();
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete category",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, [user]);
+
+  return {
+    categories,
+    loading,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    refetch: fetchCategories
+  };
+};
