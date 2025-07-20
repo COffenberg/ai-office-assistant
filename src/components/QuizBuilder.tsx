@@ -70,10 +70,10 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   );
 
   const addQuestion = () => {
-    if (!currentQuestion.question || !currentQuestion.correctAnswer) {
+    if (!currentQuestion.question) {
       toast({
         title: "Error",
-        description: "Please fill in the question and correct answer",
+        description: "Please fill in the question",
         variant: "destructive"
       });
       return;
@@ -83,7 +83,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
       id: Date.now().toString(),
       type: currentQuestion.type as QuizQuestion['type'],
       question: currentQuestion.question,
-      correctAnswer: currentQuestion.correctAnswer,
+      correctAnswer: currentQuestion.correctAnswer || '', // Allow empty correct answer
       options: currentQuestion.options || [],
       explanation: currentQuestion.explanation,
       attachedFile: currentQuestion.attachedFile
@@ -337,14 +337,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
                   {/* Correct Answer */}
                   <div className="space-y-2">
-                    <Label>Correct Answer</Label>
+                    <Label>Correct Answer (Optional)</Label>
                     {currentQuestion.type === 'true-false' ? (
                       <Select 
                         value={currentQuestion.correctAnswer} 
                         onValueChange={(value) => setCurrentQuestion({...currentQuestion, correctAnswer: value})}
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                        <SelectValue placeholder="Select correct answer (optional)..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="true">True</SelectItem>
@@ -357,7 +357,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                         onValueChange={(value) => setCurrentQuestion({...currentQuestion, correctAnswer: value})}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select correct answer..." />
+                          <SelectValue placeholder="Select correct answer (optional)..." />
                         </SelectTrigger>
                         <SelectContent>
                           {(currentQuestion.options || []).map((option, index) => (
@@ -369,7 +369,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                       </Select>
                     ) : (
                       <Input
-                        placeholder="Enter the correct answer..."
+                        placeholder="Enter the correct answer (optional)..."
                         value={currentQuestion.correctAnswer}
                         onChange={(e) => setCurrentQuestion({...currentQuestion, correctAnswer: e.target.value})}
                       />
@@ -428,7 +428,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                           </div>
                         )}
                         <div className="text-sm">
-                          <span className="font-medium">Answer:</span> {question.correctAnswer}
+                          <span className="font-medium">Answer:</span> {question.correctAnswer || 'Open-ended question'}
                         </div>
                       </div>
                       <Button 
