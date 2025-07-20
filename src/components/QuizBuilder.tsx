@@ -47,12 +47,16 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   onSave, 
   onCancel 
 }) => {
-  const { addContentToModule } = useModules();
+  const { addContentToModule, updateContent } = useModules();
   const { toast } = useToast();
   
-  const [quizTitle, setQuizTitle] = useState('');
-  const [quizDescription, setQuizDescription] = useState('');
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  // Check if we're editing an existing quiz
+  const existingQuiz = existingContent.find(item => item.content_type === 'quiz');
+  const isEditing = !!existingQuiz;
+  
+  const [quizTitle, setQuizTitle] = useState(existingQuiz?.content_data?.title || '');
+  const [quizDescription, setQuizDescription] = useState(existingQuiz?.content_data?.description || '');
+  const [questions, setQuestions] = useState<QuizQuestion[]>(existingQuiz?.content_data?.questions || []);
   const [currentQuestion, setCurrentQuestion] = useState<Partial<QuizQuestion>>({
     type: 'text',
     question: '',
@@ -163,22 +167,36 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         description: quizDescription,
         questions: questions,
         totalQuestions: questions.length,
-        createdAt: new Date().toISOString()
+        createdAt: existingQuiz?.content_data?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
-      await addContentToModule(moduleId, 'quiz', quizData, quizTitle);
-      
-      toast({
-        title: "Success",
-        description: "Quiz created successfully",
-      });
+      if (isEditing && existingQuiz) {
+        // Update existing quiz
+        await updateContent(existingQuiz.id, {
+          content_data: quizData
+        });
+        
+        toast({
+          title: "Success",
+          description: "Quiz updated successfully",
+        });
+      } else {
+        // Create new quiz
+        await addContentToModule(moduleId, 'quiz', quizData, quizTitle);
+        
+        toast({
+          title: "Success",
+          description: "Quiz created successfully",
+        });
+      }
       
       onSave();
     } catch (error) {
       console.error('Error saving quiz:', error);
       toast({
         title: "Error", 
-        description: "Failed to save quiz",
+        description: isEditing ? "Failed to update quiz" : "Failed to save quiz",
         variant: "destructive"
       });
     } finally {
@@ -195,9 +213,9 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Create Quiz</CardTitle>
+        <CardTitle>{isEditing ? 'Edit Quiz' : 'Create Quiz'}</CardTitle>
         <CardDescription>
-          Create interactive quizzes with questions that can reference uploaded documents and audio files
+          {isEditing ? 'Edit your quiz content and questions' : 'Create interactive quizzes with questions that can reference uploaded documents and audio files'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -449,8 +467,17 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         {/* Actions */}
         <div className="flex gap-2 pt-4">
           <Button onClick={saveQuiz} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Quiz'}
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                {isEditing ? 'Updating...' : 'Saving...'}
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                {isEditing ? 'Update Quiz' : 'Save Quiz'}
+              </>
+            )}
           </Button>
           <Button variant="outline" onClick={onCancel}>
             Cancel
