@@ -38,6 +38,8 @@ import { useCourses } from '@/hooks/useCourses';
 import { useModules } from '@/hooks/useModules';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { QuizBuilder } from './QuizBuilder';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const CourseManagement = () => {
   const { categories, loading: categoriesLoading, createCategory, addCategoryAttachment, refetch } = useCategories();
@@ -875,12 +877,14 @@ const CourseBuilder = ({ course, onBack }: { course: Course; onBack: () => void 
 
 // Module Content Manager Component
 const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack: () => void }) => {
-  const { addContentToModule } = useModules();
+  const { addContentToModule, updateContent, deleteContent } = useModules();
   const { uploading, uploadProgress, uploadFile } = useFileUpload();
+  const { toast } = useToast();
   const [content, setContent] = useState<ContentItem[]>(module.content || []);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadType, setUploadType] = useState<'document' | 'audio'>('document');
   const [showQuizBuilder, setShowQuizBuilder] = useState(false);
+  const [editingContent, setEditingContent] = useState<ContentItem | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -911,6 +915,30 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
     
     // Reset the input
     event.target.value = '';
+  };
+
+  const handleEditContent = (item: ContentItem) => {
+    if (item.content_type === 'quiz') {
+      setEditingContent(item);
+      setShowQuizBuilder(true);
+    } else {
+      // For non-quiz content, you could add an edit dialog here
+      toast({
+        title: "Info",
+        description: "Editing for this content type is not yet implemented",
+      });
+    }
+  };
+
+  const handleDeleteContent = async (contentId: string) => {
+    if (window.confirm('Are you sure you want to delete this content?')) {
+      try {
+        await deleteContent(contentId);
+        setContent(content.filter(item => item.id !== contentId));
+      } catch (error) {
+        // Error handling is done in the hook
+      }
+    }
   };
 
   return (
@@ -1016,13 +1044,28 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
         {showQuizBuilder && (
           <QuizBuilder
             moduleId={module.id}
-            existingContent={content}
-            onSave={() => {
+            existingContent={editingContent ? [editingContent] : []}
+            onSave={async () => {
               setShowQuizBuilder(false);
-              // Refresh content - you might want to refetch from the server
-              window.location.reload();
+              setEditingContent(null);
+              // Refresh content by re-fetching from server
+              try {
+                const { data } = await supabase
+                  .from('course_content')
+                  .select('*')
+                  .eq('module_id', module.id)
+                  .order('order_index');
+                if (data) {
+                  setContent(data as ContentItem[]);
+                }
+              } catch (error) {
+                console.error('Error refreshing content:', error);
+              }
             }}
-            onCancel={() => setShowQuizBuilder(false)}
+            onCancel={() => {
+              setShowQuizBuilder(false);
+              setEditingContent(null);
+            }}
           />
         )}
 
@@ -1042,10 +1085,20 @@ const ModuleContentManager = ({ module, onBack }: { module: CourseModule; onBack
                   <h4 className="font-medium">{item.content_data?.title || `${item.content_type} content`}</h4>
                   <p className="text-sm text-muted-foreground capitalize">{item.content_type}</p>
                 </div>
-                <Button variant="ghost" size="sm">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => handleEditContent(item)}
+                  title="Edit content"
+                >
                   <Edit className="w-4 h-4" />
                 </Button>
-                <Button variant="ghost" size="sm">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => handleDeleteContent(item.id)}
+                  title="Delete content"
+                >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
