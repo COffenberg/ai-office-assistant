@@ -4,14 +4,148 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, Trophy, Clock, Search, LogOut, ArrowLeft } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { BookOpen, Trophy, Clock, Search, LogOut, ArrowLeft, ChevronRight, Folder, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useCategories } from '@/hooks/useCategories';
 import BackToMenuLink from '@/components/BackToMenuLink';
 
 interface EmployeeLearningHubProps {
   isAdminUserMode?: boolean;
   onBackToAdmin?: () => void;
 }
+
+const CourseCatalog = () => {
+  const { categories, loading } = useCategories();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <Card className="border-dashed border-2 border-muted-foreground/25">
+        <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+          <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="font-semibold text-foreground">No Courses Available</h3>
+          <p className="text-sm text-muted-foreground">
+            Your admin hasn't created any courses yet
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Accordion type="multiple" className="w-full">
+        {categories.map((category) => (
+          <AccordionItem key={category.id} value={category.id}>
+            <AccordionTrigger className="text-left">
+              <div className="flex items-center gap-2">
+                <Folder className="w-5 h-5 text-primary" />
+                <div>
+                  <div className="font-semibold">{category.name}</div>
+                  {category.description && (
+                    <div className="text-sm text-muted-foreground">{category.description}</div>
+                  )}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              {/* Direct courses in this category */}
+              {category.courses && category.courses.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Courses</h4>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 ml-4">
+                    {category.courses.map((course) => (
+                      <CourseCard key={course.id} course={course} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-categories */}
+              {category.subCategories && category.subCategories.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Sub-categories</h4>
+                  <Accordion type="multiple" className="w-full ml-4">
+                    {category.subCategories.map((subCategory) => (
+                      <AccordionItem key={subCategory.id} value={subCategory.id}>
+                        <AccordionTrigger className="text-left">
+                          <div className="flex items-center gap-2">
+                            <Folder className="w-4 h-4 text-secondary" />
+                            <div>
+                              <div className="font-medium">{subCategory.name}</div>
+                              {subCategory.description && (
+                                <div className="text-sm text-muted-foreground">{subCategory.description}</div>
+                              )}
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-4">
+                          {subCategory.courses && subCategory.courses.length > 0 ? (
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 ml-4">
+                              {subCategory.courses.map((course) => (
+                                <CourseCard key={course.id} course={course} />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground ml-4">No courses in this sub-category yet</p>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  );
+};
+
+const CourseCard = ({ course }: { course: any }) => {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <Badge variant={course.is_published ? "default" : "secondary"}>
+            {course.is_published ? "Published" : "Draft"}
+          </Badge>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <FileText className="w-3 h-3" />
+            <span>{course.modules?.length || 0} modules</span>
+          </div>
+        </div>
+        <CardTitle className="text-lg leading-tight">{course.title}</CardTitle>
+        {course.description && (
+          <CardDescription className="text-sm">
+            {course.description}
+          </CardDescription>
+        )}
+      </CardHeader>
+      <CardContent className="pt-2">
+        <div className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span>Progress</span>
+            <span>0%</span>
+          </div>
+          <Progress value={0} className="w-full" />
+          <Button className="w-full" disabled={!course.is_published}>
+            {course.is_published ? "Start Course" : "Coming Soon"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: EmployeeLearningHubProps) => {
   const [activeTab, setActiveTab] = useState('my-courses');
@@ -120,43 +254,7 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
         </TabsContent>
 
         <TabsContent value="catalog" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="border-dashed border-2 border-muted-foreground/25">
-              <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-                <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="font-semibold text-foreground">No Courses Available</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your admin hasn't created any courses yet
-                </p>
-              </CardContent>
-            </Card>
-            
-            {/* Example course card template */}
-            <Card className="opacity-50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary">Sample</Badge>
-                  <span className="text-xs text-muted-foreground">2h 30m</span>
-                </div>
-                <CardTitle className="text-lg">Course Title</CardTitle>
-                <CardDescription>
-                  Brief description of what this course covers
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>0%</span>
-                  </div>
-                  <Progress value={0} className="w-full" />
-                  <Button className="w-full mt-4" disabled>
-                    Start Course
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <CourseCatalog />
         </TabsContent>
 
         <TabsContent value="achievements" className="space-y-4">
