@@ -3,9 +3,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Users, BarChart3, Settings, User, Eye, LogOut } from 'lucide-react';
+import { Plus, BookOpen, Users, BarChart3, Settings, User, Eye, LogOut, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import BackToMenuLink from '@/components/BackToMenuLink';
+import { Link } from 'react-router-dom';
 import EmployeeLearningHub from './EmployeeLearningHub';
 import CourseManagement from './CourseManagement';
 
@@ -34,14 +34,18 @@ const AdminLearningHub = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-background shadow-sm border-b relative">
-        <BackToMenuLink />
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="heading-display text-foreground">Learning Hub - Admin</h1>
-              <p className="text-body text-muted-foreground">
-                Create and manage courses for your team
-              </p>
+            <div className="flex items-center space-x-4">
+              <Link to="/menu" className="p-2 hover:bg-muted rounded-lg transition-colors">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="heading-display text-foreground">Learning Hub - Admin</h1>
+                <p className="text-body text-muted-foreground">
+                  Create and manage courses for your team
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">

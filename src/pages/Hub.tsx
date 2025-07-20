@@ -1,4 +1,4 @@
-import BackToMenuLink from '@/components/BackToMenuLink';
+
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import AdminLearningHub from '@/components/AdminLearningHub';
@@ -17,8 +17,6 @@ const Hub = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <BackToMenuLink />
-      
       {profile?.role === 'admin' ? <AdminLearningHub /> : <EmployeeLearningHub />}
     </div>
   );

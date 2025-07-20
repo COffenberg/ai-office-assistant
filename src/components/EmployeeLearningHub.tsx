@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { BookOpen, Trophy, Clock, Search, LogOut, ArrowLeft, ChevronRight, Folder, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCategories } from '@/hooks/useCategories';
-import BackToMenuLink from '@/components/BackToMenuLink';
+import { Link } from 'react-router-dom';
 
 interface EmployeeLearningHubProps {
   isAdminUserMode?: boolean;
@@ -159,17 +159,21 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-background shadow-sm border-b relative">
-        <BackToMenuLink />
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="heading-display text-foreground">Learning Hub</h1>
-              <p className="text-body text-muted-foreground">
-                {isAdminUserMode 
-                  ? "Testing user experience as admin" 
-                  : "Continue your learning journey"
-                }
-              </p>
+            <div className="flex items-center space-x-4">
+              <Link to="/menu" className="p-2 hover:bg-muted rounded-lg transition-colors">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="heading-display text-foreground">Learning Hub</h1>
+                <p className="text-body text-muted-foreground">
+                  {isAdminUserMode 
+                    ? "Testing user experience as admin" 
+                    : "Continue your learning journey"
+                  }
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-2">
