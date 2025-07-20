@@ -1,20 +1,25 @@
 import BackToMenuLink from '@/components/BackToMenuLink';
+import { useAuth } from '@/hooks/useAuth';
+import { Loader2 } from 'lucide-react';
+import AdminLearningHub from '@/components/AdminLearningHub';
+import EmployeeLearningHub from '@/components/EmployeeLearningHub';
 
 const Hub = () => {
+  const { profile, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <BackToMenuLink />
       
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="heading-display text-foreground mb-4">
-            Learning Hub
-          </h1>
-          <p className="text-body text-muted-foreground">
-            Work in progress...
-          </p>
-        </div>
-      </div>
+      {profile?.role === 'admin' ? <AdminLearningHub /> : <EmployeeLearningHub />}
     </div>
   );
 };
