@@ -19,10 +19,12 @@ interface EmployeeLearningHubProps {
 
 const CourseCatalog = ({ 
   onStartCourse, 
-  courseProgresses 
+  courseProgresses,
+  userRole 
 }: { 
   onStartCourse: (courseId: string) => void;
   courseProgresses: Record<string, any>;
+  userRole?: string;
 }) => {
   const { categories, loading } = useCategories();
 
@@ -41,7 +43,10 @@ const CourseCatalog = ({
           <BookOpen className="w-12 h-12 text-muted-foreground mb-4" />
           <h3 className="font-semibold text-foreground">No Courses Available</h3>
           <p className="text-sm text-muted-foreground">
-            Your admin hasn't created any courses yet
+            {userRole === 'admin' 
+              ? "No courses have been created yet" 
+              : "No published courses are available at the moment"
+            }
           </p>
         </CardContent>
       </Card>
@@ -76,6 +81,7 @@ const CourseCatalog = ({
                         course={course} 
                         onStartCourse={onStartCourse}
                         courseProgress={courseProgresses[course.id]}
+                        userRole={userRole}
                       />
                     ))}
                   </div>
@@ -109,6 +115,7 @@ const CourseCatalog = ({
                                   course={course} 
                                   onStartCourse={onStartCourse}
                                   courseProgress={courseProgresses[course.id]}
+                                  userRole={userRole}
                                 />
                               ))}
                             </div>
@@ -129,13 +136,15 @@ const CourseCatalog = ({
   );
 };
 
-const CourseCard = ({ course, onStartCourse, courseProgress }: { 
+const CourseCard = ({ course, onStartCourse, courseProgress, userRole }: { 
   course: any; 
   onStartCourse: (courseId: string) => void;
   courseProgress: any;
+  userRole?: string;
 }) => {
   const progress = courseProgress?.progress_percentage || 0;
   const hasStarted = courseProgress && courseProgress.status !== 'not_started';
+  const canAccess = userRole === 'admin' || course.is_published;
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -165,11 +174,11 @@ const CourseCard = ({ course, onStartCourse, courseProgress }: {
           <Progress value={progress} className="w-full" />
           <Button 
             className="w-full" 
-            disabled={!course.is_published}
+            disabled={!canAccess}
             onClick={() => onStartCourse(course.id)}
           >
-            {!course.is_published 
-              ? "Coming Soon" 
+            {!canAccess 
+              ? userRole === 'admin' ? "Draft Course" : "Coming Soon"
               : hasStarted 
                 ? "Continue Course" 
                 : "Start Course"
@@ -188,7 +197,7 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
   const [inProgressCourses, setInProgressCourses] = useState<any[]>([]);
   const [completedCourses, setCompletedCourses] = useState<any[]>([]);
   
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const { getAllCourseProgress } = useCourseProgress();
 
   useEffect(() => {
@@ -397,6 +406,7 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
           <CourseCatalog 
             onStartCourse={handleStartCourse}
             courseProgresses={courseProgresses}
+            userRole={profile?.role}
           />
         </TabsContent>
 

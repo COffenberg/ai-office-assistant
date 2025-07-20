@@ -70,11 +70,42 @@ export const useCategories = () => {
 
       if (categoriesError) throw categoriesError;
 
-      // Fetch all courses
-      const { data: coursesData, error: coursesError } = await supabase
+      // Fetch courses based on user role
+      let coursesQuery = supabase
         .from('courses')
-        .select('*')
+        .select(`
+          *,
+          course_modules(
+            id,
+            title,
+            description,
+            order_index,
+            module_type,
+            course_content(
+              id,
+              content_type,
+              content_data,
+              order_index
+            )
+          )
+        `)
         .order('created_at', { ascending: false });
+
+      // Check user role from profile to determine what courses to show
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      const userRole = profileData?.role;
+
+      // If user is not an admin, only show published courses
+      if (userRole !== 'admin') {
+        coursesQuery = coursesQuery.eq('is_published', true);
+      }
+
+      const { data: coursesData, error: coursesError } = await coursesQuery;
 
       if (coursesError) throw coursesError;
 
@@ -99,7 +130,17 @@ export const useCategories = () => {
         };
       });
 
-      setCategories(organizedCategories);
+      // Filter out categories that have no courses (for non-admin users)
+      const filteredCategories = userRole === 'admin' 
+        ? organizedCategories 
+        : organizedCategories.filter(category => {
+            const hasDirectCourses = category.courses && category.courses.length > 0;
+            const hasSubCategoryCourses = category.subCategories && 
+              category.subCategories.some(sub => sub.courses && sub.courses.length > 0);
+            return hasDirectCourses || hasSubCategoryCourses;
+          });
+
+      setCategories(filteredCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast({
