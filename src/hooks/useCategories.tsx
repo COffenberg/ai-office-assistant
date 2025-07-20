@@ -112,9 +112,17 @@ export const useCategories = () => {
         `)
         .order('created_at', { ascending: false });
 
-      // If user is not an admin, only show published courses
+      // Show all courses that the user has access to via category permissions
+      // For admin users: show all courses
+      // For non-admin users: show all courses in their accessible categories
       if (userRole !== 'admin') {
-        coursesQuery = coursesQuery.eq('is_published', true);
+        // Filter courses to only those in categories the user has access to
+        if (allowedCategoryIds.length > 0) {
+          coursesQuery = coursesQuery.in('category_id', allowedCategoryIds);
+        } else {
+          // If user has no category access, show no courses
+          coursesQuery = coursesQuery.eq('category_id', 'no-access');
+        }
       }
 
       const { data: coursesData, error: coursesError } = await coursesQuery;
