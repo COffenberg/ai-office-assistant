@@ -8,7 +8,7 @@ const AdminLearningHub = () => {
   const [activeTab, setActiveTab] = useState('courses');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="pt-20 px-6 pb-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="heading-display text-foreground">Learning Hub - Admin</h1>
