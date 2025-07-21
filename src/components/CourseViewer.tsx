@@ -94,6 +94,18 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
   const handleCompleteModule = async (moduleId: string) => {
     if (!user) return;
 
+    // Check if all quiz questions in the module have been answered
+    const module = course?.modules?.find(m => m.id === moduleId);
+    if (module) {
+      const quizContent = module.content?.filter(c => c.content_type === 'quiz') || [];
+      if (quizContent.length > 0) {
+        // For now, we'll just show a message that quizzes need to be completed
+        // In a real implementation, you'd track quiz completion status
+        alert('Please complete all quizzes in this module before marking it as complete.');
+        return;
+      }
+    }
+
     await completeModule(moduleId, courseId);
     
     // Update local state
@@ -105,6 +117,21 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
     // Refresh course progress
     const updatedProgress = await getCourseProgress(courseId);
     setCourseProgress(updatedProgress);
+  };
+
+  const handleUncompleteModule = async (moduleId: string) => {
+    if (!user) return;
+
+    // Set module as incomplete by calling completeModule with false parameter
+    // First, let's update the progress state locally
+    setModuleProgress(prev => ({
+      ...prev,
+      [moduleId]: false
+    }));
+
+    // In a real implementation, you'd call an API to uncomplete the module
+    // For now, we'll just update the local state
+    console.log('Uncompleting module:', moduleId);
   };
 
   const renderContent = (content: any) => {
@@ -199,7 +226,13 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
                   <span className="text-sm text-muted-foreground">
                     {contentData.questions?.length || 0} questions
                   </span>
-                  <Button size="sm">
+                  <Button 
+                    size="sm"
+                    onClick={() => {
+                      // TODO: Implement quiz functionality
+                      console.log('Starting quiz:', contentData);
+                    }}
+                  >
                     Start Quiz
                   </Button>
                 </div>
@@ -376,8 +409,8 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
                             </div>
                           )}
                           
-                          {!isCompleted && (
-                            <div className="pt-4 border-t">
+                          <div className="pt-4 border-t">
+                            {!isCompleted ? (
                               <Button 
                                 onClick={() => handleCompleteModule(module.id)}
                                 className="w-full"
@@ -386,8 +419,18 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Mark Module as Complete
                               </Button>
-                            </div>
-                          )}
+                            ) : (
+                              <Button 
+                                onClick={() => handleUncompleteModule(module.id)}
+                                className="w-full"
+                                size="lg"
+                                variant="outline"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Restart Module
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     )}

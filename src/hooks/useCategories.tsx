@@ -98,15 +98,21 @@ export const useCategories = () => {
           *,
           course_modules(
             id,
+            course_id,
             title,
             description,
             order_index,
             module_type,
+            created_at,
+            updated_at,
             course_content(
               id,
+              module_id,
               content_type,
               content_data,
-              order_index
+              order_index,
+              created_at,
+              updated_at
             )
           )
         `)
@@ -135,11 +141,41 @@ export const useCategories = () => {
 
       const organizedCategories = parentCategories.map(category => {
         const categorySubCategories = subCategories.filter(sub => sub.parent_category_id === category.id);
-        const categoryCourses = coursesData?.filter(course => course.category_id === category.id) || [];
+        const categoryCourses = coursesData?.filter(course => course.category_id === category.id).map(course => {
+          const { course_modules, ...courseWithoutModules } = course;
+          return {
+            ...courseWithoutModules,
+            modules: (course_modules || []).map(module => {
+              const { course_content, ...moduleWithoutContent } = module;
+              return {
+                ...moduleWithoutContent,
+                content: (course_content || []).map(content => ({
+                  ...content,
+                  content_type: content.content_type as 'document' | 'audio' | 'quiz' | 'text'
+                }))
+              };
+            })
+          };
+        }) || [];
         
         const subCategoriesWithCourses = categorySubCategories.map(subCat => ({
           ...subCat,
-          courses: coursesData?.filter(course => course.category_id === subCat.id) || [],
+          courses: coursesData?.filter(course => course.category_id === subCat.id).map(course => {
+            const { course_modules, ...courseWithoutModules } = course;
+            return {
+              ...courseWithoutModules,
+              modules: (course_modules || []).map(module => {
+                const { course_content, ...moduleWithoutContent } = module;
+                return {
+                  ...moduleWithoutContent,
+                  content: (course_content || []).map(content => ({
+                    ...content,
+                    content_type: content.content_type as 'document' | 'audio' | 'quiz' | 'text'
+                  }))
+                };
+              })
+            };
+          }) || [],
           subCategories: []
         }));
 
