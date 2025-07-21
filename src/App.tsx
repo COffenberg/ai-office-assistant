@@ -13,6 +13,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import EmployeeDashboard from "./components/EmployeeDashboard";
 import LandingMenu from "./pages/LandingMenu";
 import Hub from "./pages/Hub";
+import CallAnalyzer from "./pages/CallAnalyzer";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./hooks/useAuth";
@@ -46,6 +47,14 @@ const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <Hub />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/call-analyzer" 
+                element={
+                  <ProtectedRoute>
+                    <CallAnalyzer />
                   </ProtectedRoute>
                 } 
               />

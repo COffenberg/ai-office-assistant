@@ -8,18 +8,25 @@ const LandingMenu = () => {
 
   const menuItems = [
     {
+      title: 'Call Analyzer',
+      description: 'Analyze and review call recordings for quality and insights',
+      icon: BookOpen,
+      path: '/call-analyzer',
+      color: 'from-primary/20 to-accent/20'
+    },
+    {
       title: 'Learning Hub',
       description: 'Access training materials, documents, videos, and quizzes',
       icon: BookOpen,
       path: '/hub',
-      color: 'from-primary/20 to-accent/20'
+      color: 'from-accent/20 to-primary/20'
     },
     {
       title: 'Chatbot',
       description: 'Chat with our AI assistant about company documents and knowledge',
       icon: MessageSquare,
       path: profile?.role === 'admin' ? '/admin' : '/employee',
-      color: 'from-accent/20 to-primary/20'
+      color: 'from-primary/20 to-accent/20'
     }
   ];
 
@@ -47,7 +54,7 @@ const LandingMenu = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {menuItems.map((item) => (
             <Link
               key={item.title}
