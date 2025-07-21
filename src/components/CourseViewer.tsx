@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, BookOpen, Play, CheckCircle, FileText, Volume2, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, Play, CheckCircle, FileText, Volume2, HelpCircle, ChevronDown, ChevronRight, Edit } from 'lucide-react';
 import { useCourses } from '@/hooks/useCourses';
 import { useCourseProgress } from '@/hooks/useCourseProgress';
 import { useAuth } from '@/hooks/useAuth';
+import { QuizTaker } from './QuizTaker';
 interface CourseViewerProps {
   courseId: string;
   onBack: () => void;
@@ -39,6 +40,8 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const [moduleProgress, setModuleProgress] = useState<Record<string, boolean>>({});
   const [courseProgress, setCourseProgress] = useState<any>(null);
+  const [activeQuiz, setActiveQuiz] = useState<any>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, Record<string, string>>>({});
 
   const { fetchCourseWithModules } = useCourses();
   const { 
@@ -99,10 +102,12 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
     if (module) {
       const quizContent = module.content?.filter(c => c.content_type === 'quiz') || [];
       if (quizContent.length > 0) {
-        // For now, we'll just show a message that quizzes need to be completed
-        // In a real implementation, you'd track quiz completion status
-        alert('Please complete all quizzes in this module before marking it as complete.');
-        return;
+        // Check if all quizzes have been answered
+        const hasUnansweredQuizzes = quizContent.some(quiz => !quizAnswers[quiz.id]);
+        if (hasUnansweredQuizzes) {
+          alert('Please complete all quizzes in this module before marking it as complete.');
+          return;
+        }
       }
     }
 
@@ -119,19 +124,17 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
     setCourseProgress(updatedProgress);
   };
 
-  const handleUncompleteModule = async (moduleId: string) => {
+  const handleEditAnswers = async (moduleId: string) => {
     if (!user) return;
 
-    // Set module as incomplete by calling completeModule with false parameter
-    // First, let's update the progress state locally
+    // Set module as incomplete so users can re-answer quizzes
     setModuleProgress(prev => ({
       ...prev,
       [moduleId]: false
     }));
 
-    // In a real implementation, you'd call an API to uncomplete the module
-    // For now, we'll just update the local state
-    console.log('Uncompleting module:', moduleId);
+    // Clear completion status but preserve answers for editing
+    console.log('Enabling edit mode for module:', moduleId);
   };
 
   const renderContent = (content: any) => {
@@ -228,12 +231,9 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
                   </span>
                   <Button 
                     size="sm"
-                    onClick={() => {
-                      // TODO: Implement quiz functionality
-                      console.log('Starting quiz:', contentData);
-                    }}
+                    onClick={() => setActiveQuiz(content)}
                   >
-                    Start Quiz
+                    {quizAnswers[content.id] ? 'Review Quiz' : 'Start Quiz'}
                   </Button>
                 </div>
               </div>
@@ -264,6 +264,32 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
 
   const progressPercentage = courseProgress?.progress_percentage || 0;
   const hasStarted = courseProgress && courseProgress.status !== 'not_started';
+
+  // Handle quiz completion
+  const handleQuizComplete = (quizId: string, answers: Record<string, string>) => {
+    setQuizAnswers(prev => ({
+      ...prev,
+      [quizId]: answers
+    }));
+    setActiveQuiz(null);
+  };
+
+  // Show quiz taker if active
+  if (activeQuiz) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-6 py-6">
+          <QuizTaker
+            quizData={activeQuiz.content_data}
+            onComplete={(answers) => handleQuizComplete(activeQuiz.id, answers)}
+            onExit={() => setActiveQuiz(null)}
+            savedAnswers={quizAnswers[activeQuiz.id]}
+            isEditMode={!!quizAnswers[activeQuiz.id]}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -421,13 +447,13 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
                               </Button>
                             ) : (
                               <Button 
-                                onClick={() => handleUncompleteModule(module.id)}
+                                onClick={() => handleEditAnswers(module.id)}
                                 className="w-full"
                                 size="lg"
                                 variant="outline"
                               >
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Restart Module
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Answers
                               </Button>
                             )}
                           </div>

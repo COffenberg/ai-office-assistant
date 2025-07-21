@@ -169,6 +169,17 @@ const CourseManagement = () => {
     }
   };
 
+  const { updateCourse } = useCourses();
+  
+  const handleToggleCourseStatus = async (courseId: string, isPublished: boolean) => {
+    try {
+      await updateCourse(courseId, { is_published: isPublished });
+      refetch(); // Refresh categories to show updated course status
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
   if (categoriesLoading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -272,6 +283,7 @@ const CourseManagement = () => {
               onEditCourse={openCourseBuilder}
               onEditCategory={handleEditCategory}
               onEditSubCategory={handleEditSubCategory}
+              onToggleCourseStatus={handleToggleCourseStatus}
             />
           ))}
         </div>
@@ -456,6 +468,7 @@ interface CategoryCardProps {
   onEditCourse: (course: Course) => void;
   onEditCategory: (category: Category) => void;
   onEditSubCategory: (subCategory: Category) => void;
+  onToggleCourseStatus: (courseId: string, isPublished: boolean) => void;
 }
 
 const CategoryCard = ({ 
@@ -468,10 +481,11 @@ const CategoryCard = ({
   onCreateSubCategory,
   onEditCourse,
   onEditCategory,
-  onEditSubCategory
+  onEditSubCategory,
+  onToggleCourseStatus
 }: CategoryCardProps) => {
   const { addCategoryAttachment } = useCategories();
-  const { addCourseAttachment } = useCourses();
+  const { addCourseAttachment, updateCourse } = useCourses();
   const totalCourses = (category.courses?.length || 0) + 
     (category.subCategories?.reduce((sum, sub) => sum + (sub.courses?.length || 0), 0) || 0);
 
@@ -610,6 +624,20 @@ const CategoryCard = ({
                         <Badge variant="outline">
                           {course.modules?.length || 0} modules
                         </Badge>
+                        <Button 
+                          variant={course.is_published ? "outline" : "default"} 
+                          size="sm" 
+                          onClick={async () => {
+                            try {
+                              await updateCourse(course.id, { is_published: !course.is_published });
+                              onToggleCourseStatus(course.id, !course.is_published);
+                            } catch (error) {
+                              // Error handled in hook
+                            }
+                          }}
+                        >
+                          {course.is_published ? "Deactivate" : "Activate"}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -653,6 +681,7 @@ const CategoryCard = ({
                       onCreateCourse={onCreateCourse}
                       onEditCourse={onEditCourse}
                       onEditSubCategory={onEditSubCategory}
+                      onToggleCourseStatus={onToggleCourseStatus}
                     />
                   ))}
                 </div>
@@ -695,6 +724,7 @@ interface SubCategoryCardProps {
   onCreateCourse: (categoryId: string) => void;
   onEditCourse: (course: Course) => void;
   onEditSubCategory: (subCategory: Category) => void;
+  onToggleCourseStatus?: (courseId: string, isPublished: boolean) => void;
 }
 
 const SubCategoryCard = ({
@@ -703,10 +733,11 @@ const SubCategoryCard = ({
   toggleSubCategory,
   onCreateCourse,
   onEditCourse,
-  onEditSubCategory
+  onEditSubCategory,
+  onToggleCourseStatus
 }: SubCategoryCardProps) => {
   const { addCategoryAttachment } = useCategories();
-  const { addCourseAttachment } = useCourses();
+  const { addCourseAttachment, updateCourse } = useCourses();
 
   const handleSubCategoryFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -828,33 +859,49 @@ const SubCategoryCard = ({
                       <h5 className="text-sm font-medium">{course.title}</h5>
                       <p className="text-xs text-muted-foreground">{course.description}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {course.modules?.length || 0} modules
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEditCourse(course)}
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          title="Upload Files"
-                        >
-                          <Upload className="w-3 h-3" />
-                        </Button>
-                        <input
-                          type="file"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
-                          onChange={(e) => handleCourseFileUpload(course.id, e)}
-                        />
-                      </div>
-                    </div>
+                     <div className="flex items-center gap-2">
+                       <Badge variant="outline" className="text-xs">
+                         {course.modules?.length || 0} modules
+                       </Badge>
+                       {onToggleCourseStatus && (
+                         <Button 
+                           variant={course.is_published ? "outline" : "default"} 
+                           size="sm" 
+                           onClick={async () => {
+                             try {
+                               await updateCourse(course.id, { is_published: !course.is_published });
+                               onToggleCourseStatus(course.id, !course.is_published);
+                             } catch (error) {
+                               // Error handled in hook
+                             }
+                           }}
+                         >
+                           {course.is_published ? "Deactivate" : "Activate"}
+                         </Button>
+                       )}
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => onEditCourse(course)}
+                       >
+                         <Edit className="w-3 h-3" />
+                       </Button>
+                       <div className="relative">
+                         <Button
+                           variant="ghost"
+                           size="sm"
+                           title="Upload Files"
+                         >
+                           <Upload className="w-3 h-3" />
+                         </Button>
+                         <input
+                           type="file"
+                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                           accept=".pdf,.doc,.docx,.ppt,.pptx,.mp3,.wav,.m4a,.jpg,.jpeg,.png,.gif,.webp,.svg"
+                           onChange={(e) => handleCourseFileUpload(course.id, e)}
+                         />
+                       </div>
+                     </div>
                   </div>
                 ))}
               </div>
