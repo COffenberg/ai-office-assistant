@@ -42,7 +42,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 const CourseManagement = () => {
-  const { categories, loading: categoriesLoading, createCategory, addCategoryAttachment, refetch } = useCategories();
+  const { categories, loading: categoriesLoading, createCategory, updateCategory, addCategoryAttachment, refetch } = useCategories();
   const { loading: coursesLoading, createCourse, fetchCourseWithModules, addCourseAttachment } = useCourses();
   const { loading: modulesLoading, createModule, addContentToModule } = useModules();
   const { uploading, uploadProgress, uploadFile } = useFileUpload();
@@ -55,6 +55,12 @@ const CourseManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedParentCategory, setSelectedParentCategory] = useState<string>('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  
+  // Edit states
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingSubCategory, setEditingSubCategory] = useState<Category | null>(null);
+  const [showEditCategoryDialog, setShowEditCategoryDialog] = useState(false);
+  const [showEditSubCategoryDialog, setShowEditSubCategoryDialog] = useState(false);
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
@@ -109,6 +115,46 @@ const CourseManagement = () => {
       setCourseForm({ title: '', description: '' });
       setSelectedCategory('');
       refetch(); // Refresh categories to show new course
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setCategoryForm({ name: category.name, description: category.description || '' });
+    setShowEditCategoryDialog(true);
+  };
+
+  const handleEditSubCategory = (subCategory: Category) => {
+    setEditingSubCategory(subCategory);
+    setSubCategoryForm({ name: subCategory.name, description: subCategory.description || '' });
+    setShowEditSubCategoryDialog(true);
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory || !updateCategory) return;
+    
+    try {
+      await updateCategory(editingCategory.id, { name: categoryForm.name, description: categoryForm.description });
+      setShowEditCategoryDialog(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: '', description: '' });
+      refetch();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleUpdateSubCategory = async () => {
+    if (!editingSubCategory || !updateCategory) return;
+    
+    try {
+      await updateCategory(editingSubCategory.id, { name: subCategoryForm.name, description: subCategoryForm.description });
+      setShowEditSubCategoryDialog(false);
+      setEditingSubCategory(null);
+      setSubCategoryForm({ name: '', description: '' });
+      refetch();
     } catch (error) {
       // Error handling is done in the hook
     }
@@ -224,6 +270,8 @@ const CourseManagement = () => {
                 setShowSubCategoryDialog(true);
               }}
               onEditCourse={openCourseBuilder}
+              onEditCategory={handleEditCategory}
+              onEditSubCategory={handleEditSubCategory}
             />
           ))}
         </div>
@@ -308,10 +356,92 @@ const CourseManagement = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Category Dialog */}
+        <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Category</DialogTitle>
+              <DialogDescription>
+                Update the category information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Category Name</label>
+                <Input
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  placeholder="e.g., Safety Training, IT Skills"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Description</label>
+                <Textarea
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  placeholder="Brief description of this category"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowEditCategoryDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleUpdateCategory}
+                  disabled={categoriesLoading || !categoryForm.name.trim()}
+                >
+                  {categoriesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Category"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Sub-Category Dialog */}
+        <Dialog open={showEditSubCategoryDialog} onOpenChange={setShowEditSubCategoryDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Sub-Category</DialogTitle>
+              <DialogDescription>
+                Update the sub-category information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Sub-Category Name</label>
+                <Input
+                  value={subCategoryForm.name}
+                  onChange={(e) => setSubCategoryForm({ ...subCategoryForm, name: e.target.value })}
+                  placeholder="e.g., Basic Safety, Advanced Procedures"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Description</label>
+                <Textarea
+                  value={subCategoryForm.description}
+                  onChange={(e) => setSubCategoryForm({ ...subCategoryForm, description: e.target.value })}
+                  placeholder="Brief description of this sub-category"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowEditSubCategoryDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleUpdateSubCategory}
+                  disabled={categoriesLoading || !subCategoryForm.name.trim()}
+                >
+                  {categoriesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Sub-Category"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
 };
 
 // Category Card Component with Sub-Categories
@@ -324,6 +454,8 @@ interface CategoryCardProps {
   onCreateCourse: (categoryId: string) => void;
   onCreateSubCategory: (categoryId: string) => void;
   onEditCourse: (course: Course) => void;
+  onEditCategory: (category: Category) => void;
+  onEditSubCategory: (subCategory: Category) => void;
 }
 
 const CategoryCard = ({ 
@@ -334,7 +466,9 @@ const CategoryCard = ({
   toggleSubCategory,
   onCreateCourse, 
   onCreateSubCategory,
-  onEditCourse 
+  onEditCourse,
+  onEditCategory,
+  onEditSubCategory
 }: CategoryCardProps) => {
   const { addCategoryAttachment } = useCategories();
   const { addCourseAttachment } = useCourses();
@@ -400,6 +534,17 @@ const CategoryCard = ({
                 <Badge variant="outline">
                   {category.subCategories?.length || 0} sub-categories
                 </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditCategory(category);
+                  }}
+                  title="Edit Category"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -507,6 +652,7 @@ const CategoryCard = ({
                       toggleSubCategory={toggleSubCategory}
                       onCreateCourse={onCreateCourse}
                       onEditCourse={onEditCourse}
+                      onEditSubCategory={onEditSubCategory}
                     />
                   ))}
                 </div>
@@ -548,6 +694,7 @@ interface SubCategoryCardProps {
   toggleSubCategory: (id: string) => void;
   onCreateCourse: (categoryId: string) => void;
   onEditCourse: (course: Course) => void;
+  onEditSubCategory: (subCategory: Category) => void;
 }
 
 const SubCategoryCard = ({
@@ -555,7 +702,8 @@ const SubCategoryCard = ({
   openSubCategories,
   toggleSubCategory,
   onCreateCourse,
-  onEditCourse
+  onEditCourse,
+  onEditSubCategory
 }: SubCategoryCardProps) => {
   const { addCategoryAttachment } = useCategories();
   const { addCourseAttachment } = useCourses();
@@ -613,6 +761,17 @@ const SubCategoryCard = ({
                 <Badge variant="secondary" className="text-xs">
                   {subCategory.courses?.length || 0} courses
                 </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditSubCategory(subCategory);
+                  }}
+                  title="Edit Sub-Category"
+                >
+                  <Edit className="w-3 h-3" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"

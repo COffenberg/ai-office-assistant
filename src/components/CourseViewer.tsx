@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, BookOpen, Play, CheckCircle, FileText, Volume2, HelpCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Play, CheckCircle, FileText, Volume2, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCourses } from '@/hooks/useCourses';
 import { useCourseProgress } from '@/hooks/useCourseProgress';
 import { useAuth } from '@/hooks/useAuth';
@@ -233,136 +233,180 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
   const hasStarted = courseProgress && courseProgress.status !== 'not_started';
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Courses
-        </Button>
-      </div>
-
-      {/* Course Info */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Badge variant={course.is_published ? "default" : "secondary"}>
-                  {course.is_published ? "Published" : "Draft"}
-                </Badge>
-                {hasStarted && (
-                  <Badge variant="outline">
-                    {courseProgress.status === 'completed' ? 'Completed' : 'In Progress'}
-                  </Badge>
-                )}
+      <div className="bg-background shadow-sm border-b">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={onBack} className="p-2">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">{course?.title}</h1>
+                <p className="text-muted-foreground">{course?.description}</p>
               </div>
-              <CardTitle className="text-2xl">{course.title}</CardTitle>
-              {course.description && (
-                <CardDescription className="text-base">{course.description}</CardDescription>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {courseProgress && courseProgress.status !== 'not_started' && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-muted-foreground">Progress:</span>
+                  <Progress value={courseProgress.progress_percentage} className="w-20" />
+                  <span className="text-sm font-medium">{courseProgress.progress_percentage}%</span>
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {course.modules.length} modules
-              </span>
-            </div>
           </div>
+        </div>
+      </div>
 
-          {hasStarted && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{progressPercentage}%</span>
+      {/* Course Content */}
+      <div className="container mx-auto px-6 py-6">
+        {!courseProgress || courseProgress.status === 'not_started' ? (
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader className="text-center">
+              <CardTitle className="flex items-center justify-center gap-2">
+                <BookOpen className="w-6 h-6" />
+                Start Your Learning Journey
+              </CardTitle>
+              <CardDescription>
+                Ready to begin this course? Click below to get started!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <div className="grid gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center justify-center gap-2">
+                  <Badge variant="outline">{course?.modules?.length || 0} modules</Badge>
+                  <span>•</span>
+                  <span>Self-paced learning</span>
+                </div>
               </div>
-              <Progress value={progressPercentage} className="w-full" />
+              <Button size="lg" onClick={handleStartCourse} className="w-full">
+                <Play className="w-4 h-4 mr-2" />
+                Start Course
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-xl font-semibold mb-2">Course Modules</h2>
+              <p className="text-muted-foreground">Complete each module to progress through the course</p>
             </div>
-          )}
 
-          {!hasStarted && course.is_published && (
-            <Button onClick={handleStartCourse} className="w-fit">
-              <Play className="w-4 h-4 mr-2" />
-              Start Course
-            </Button>
-          )}
-        </CardHeader>
-      </Card>
-
-      {/* Course Modules */}
-      {hasStarted && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Course Content</CardTitle>
-            <CardDescription>
-              Navigate through the modules to complete the course
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Accordion type="single" value={activeModule || undefined} onValueChange={setActiveModule} className="w-full">
-              {course.modules.map((module, index) => {
+            <div className="max-w-4xl mx-auto space-y-4">
+              {course?.modules?.map((module, index) => {
                 const isCompleted = moduleProgress[module.id];
                 const completedModules = Object.values(moduleProgress).filter(Boolean).length;
                 const isAccessible = index === 0 || completedModules >= index;
-
+                const isActive = activeModule === module.id;
+                
                 return (
-                  <AccordionItem key={module.id} value={module.id}>
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                          isCompleted 
-                            ? 'bg-green-500 text-white' 
-                            : isAccessible 
-                              ? 'bg-primary text-primary-foreground' 
-                              : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {isCompleted ? <CheckCircle className="w-4 h-4" /> : index + 1}
+                  <Card key={module.id} className={`transition-all ${isCompleted ? 'border-green-200 bg-green-50/30' : ''} ${!isAccessible ? 'opacity-60' : ''}`}>
+                    <CardHeader 
+                      className={`cursor-pointer hover:bg-muted/50 transition-colors ${!isAccessible ? 'cursor-not-allowed' : ''}`}
+                      onClick={() => isAccessible && setActiveModule(isActive ? null : module.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                            isCompleted 
+                              ? 'bg-green-100 border-2 border-green-300' 
+                              : isAccessible 
+                                ? 'bg-primary/10 border-2 border-primary' 
+                                : 'bg-muted border-2 border-muted-foreground'
+                          }`}>
+                            {isCompleted ? (
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <span className={isAccessible ? 'text-primary' : 'text-muted-foreground'}>{index + 1}</span>
+                            )}
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">{module.title}</CardTitle>
+                            <CardDescription className="text-base">{module.description}</CardDescription>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="font-semibold">{module.title}</div>
-                          {module.description && (
-                            <div className="text-sm text-muted-foreground">{module.description}</div>
+                        <div className="flex items-center gap-3">
+                          {isCompleted && (
+                            <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">
+                              Completed
+                            </Badge>
+                          )}
+                          {!isCompleted && isAccessible && (
+                            <Badge variant="secondary">
+                              {module.content?.length || 0} items
+                            </Badge>
+                          )}
+                          {!isAccessible && (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              Locked
+                            </Badge>
+                          )}
+                          {isAccessible && (
+                            isActive ? 
+                              <ChevronDown className="w-5 h-5" /> : 
+                              <ChevronRight className="w-5 h-5" />
                           )}
                         </div>
-                        <Badge variant="outline" className="ml-auto">
-                          {module.content.length} items
-                        </Badge>
                       </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-4">
-                      {isAccessible ? (
-                        <>
-                          {module.content.map((content) => (
-                            <div key={content.id}>
-                              {renderContent(content)}
+                    </CardHeader>
+                    
+                    {isActive && isAccessible && (
+                      <CardContent>
+                        <div className="space-y-4">
+                          {module.content && module.content.length > 0 ? (
+                            <div className="space-y-4">
+                              {module.content.map((content, contentIndex) => (
+                                <div key={content.id} className="border rounded-lg p-4 bg-background">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xs font-medium text-muted-foreground">
+                                      Item {contentIndex + 1}
+                                    </span>
+                                  </div>
+                                  {renderContent(content)}
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p>No content available for this module</p>
+                            </div>
+                          )}
                           
                           {!isCompleted && (
                             <div className="pt-4 border-t">
                               <Button 
                                 onClick={() => handleCompleteModule(module.id)}
                                 className="w-full"
+                                size="lg"
                               >
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Mark Module as Complete
                               </Button>
                             </div>
                           )}
-                        </>
-                      ) : (
+                        </div>
+                      </CardContent>
+                    )}
+                    
+                    {!isAccessible && (
+                      <CardContent>
                         <div className="text-center py-8 text-muted-foreground">
+                          <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
                           <p>Complete the previous modules to unlock this content</p>
                         </div>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
+                      </CardContent>
+                    )}
+                  </Card>
                 );
               })}
-            </Accordion>
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
