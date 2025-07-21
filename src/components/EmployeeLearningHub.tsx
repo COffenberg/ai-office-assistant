@@ -234,9 +234,10 @@ const EmployeeLearningHub = ({ isAdminUserMode = false, onBackToAdmin }: Employe
     setSelectedCourse(courseId);
   };
 
-  const handleBackFromCourse = () => {
+const handleBackFromCourse = () => {
     setSelectedCourse(null);
     loadProgressData(); // Refresh progress when returning
+    // Preserve the previous tab state when returning
   };
 
   return (

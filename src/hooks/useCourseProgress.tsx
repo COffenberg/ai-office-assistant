@@ -143,6 +143,41 @@ export const useCourseProgress = () => {
     }
   };
 
+  const uncompleteModule = async (moduleId: string, courseId: string): Promise<void> => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Mark module as uncompleted
+      await supabase
+        .from('user_module_progress')
+        .upsert({
+          user_id: user.id,
+          module_id: moduleId,
+          completed: false,
+          completed_at: null
+        });
+
+      // Update course progress
+      await updateCourseProgress(courseId);
+
+      toast({
+        title: "Module Reset",
+        description: "You can now re-answer the questions in this module.",
+      });
+    } catch (error) {
+      console.error('Error uncompleting module:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset module",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateCourseProgress = async (courseId: string): Promise<void> => {
     if (!user) return;
 
@@ -211,6 +246,7 @@ export const useCourseProgress = () => {
     startCourse,
     getModuleProgress,
     completeModule,
+    uncompleteModule,
     updateCourseProgress,
     getAllCourseProgress
   };

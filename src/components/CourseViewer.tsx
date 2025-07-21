@@ -49,6 +49,7 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
     startCourse, 
     getModuleProgress, 
     completeModule, 
+    uncompleteModule,
     updateCourseProgress 
   } = useCourseProgress();
   const { user } = useAuth();
@@ -127,14 +128,17 @@ const CourseViewer = ({ courseId, onBack }: CourseViewerProps) => {
   const handleEditAnswers = async (moduleId: string) => {
     if (!user) return;
 
-    // Set module as incomplete so users can re-answer quizzes
+    await uncompleteModule(moduleId, courseId);
+    
+    // Update local state
     setModuleProgress(prev => ({
       ...prev,
       [moduleId]: false
     }));
 
-    // Clear completion status but preserve answers for editing
-    console.log('Enabling edit mode for module:', moduleId);
+    // Refresh course progress
+    const updatedProgress = await getCourseProgress(courseId);
+    setCourseProgress(updatedProgress);
   };
 
   const renderContent = (content: any) => {

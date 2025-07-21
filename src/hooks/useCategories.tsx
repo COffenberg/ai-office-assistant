@@ -141,7 +141,10 @@ export const useCategories = () => {
 
       const organizedCategories = parentCategories.map(category => {
         const categorySubCategories = subCategories.filter(sub => sub.parent_category_id === category.id);
-        const categoryCourses = coursesData?.filter(course => course.category_id === category.id).map(course => {
+        const categoryCourses = coursesData?.filter(course => 
+          course.category_id === category.id && 
+          (userRole === 'admin' || course.is_published)
+        ).map(course => {
           const { course_modules, ...courseWithoutModules } = course;
           return {
             ...courseWithoutModules,
@@ -160,7 +163,10 @@ export const useCategories = () => {
         
         const subCategoriesWithCourses = categorySubCategories.map(subCat => ({
           ...subCat,
-          courses: coursesData?.filter(course => course.category_id === subCat.id).map(course => {
+          courses: coursesData?.filter(course => 
+            course.category_id === subCat.id && 
+            (userRole === 'admin' || course.is_published)
+          ).map(course => {
             const { course_modules, ...courseWithoutModules } = course;
             return {
               ...courseWithoutModules,
