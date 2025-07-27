@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  MoreVertical
+  MoreVertical,
+  Upload
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -201,6 +202,10 @@ const Automations = ({ onBack }: AutomationsProps) => {
           <h1 className="heading-display text-foreground">Automations</h1>
           <p className="text-muted-foreground">Manage your scheduled analysis automations</p>
         </div>
+        <Button onClick={() => {}} className="flex items-center gap-2">
+          <Upload className="w-4 h-4" />
+          Create Automation
+        </Button>
       </div>
 
       {/* Search */}

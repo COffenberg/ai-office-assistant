@@ -46,7 +46,6 @@ const CallAnalyzer = () => {
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'departments', label: 'Departments', icon: Building },
-    { id: 'upload', label: 'Upload Calls', icon: Upload },
     { id: 'analysis-queue', label: 'Analysis Queue', icon: Clock },
     { id: 'results', label: 'Results', icon: BarChart3 },
     { id: 'automations', label: 'Automations', icon: Settings },

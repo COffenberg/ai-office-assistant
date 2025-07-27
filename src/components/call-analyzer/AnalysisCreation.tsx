@@ -451,9 +451,45 @@ const AnalysisCreation = ({ department, onBack }: AnalysisCreationProps) => {
                   <Textarea placeholder="Enter email addresses of users and admins to send results to" />
                 </div>
                 
-                <div>
+                <div className="space-y-2">
                   <Label>Frequency</Label>
-                  <Input placeholder="e.g., Weekly, Monthly, Daily" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm">Repeat Every</Label>
+                      <select className="w-full p-2 border rounded-md">
+                        <option>Daily</option>
+                        <option>Weekly</option>
+                        <option>Bi-weekly (Every 14 days)</option>
+                        <option>Monthly</option>
+                        <option>Quarterly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Day of Week</Label>
+                      <select className="w-full p-2 border rounded-md">
+                        <option>Monday</option>
+                        <option>Tuesday</option>
+                        <option>Wednesday</option>
+                        <option>Thursday</option>
+                        <option>Friday</option>
+                        <option>Saturday</option>
+                        <option>Sunday</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Time of Day</Label>
+                      <input type="time" className="w-full p-2 border rounded-md" defaultValue="09:00" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Timezone</Label>
+                      <select className="w-full p-2 border rounded-md">
+                        <option>UTC</option>
+                        <option>EST</option>
+                        <option>PST</option>
+                        <option>CET</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2">
@@ -504,13 +540,16 @@ const AnalysisCreation = ({ department, onBack }: AnalysisCreationProps) => {
       <div className="flex items-center gap-2">
         {['upload', 'transcription', 'analysis', 'results', 'automation'].map((step, index) => (
           <div key={step} className="flex items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              currentStep === step ? 'bg-primary text-primary-foreground' :
-              ['upload', 'transcription', 'analysis', 'results', 'automation'].indexOf(currentStep) > index ? 'bg-green-500 text-white' :
-              'bg-muted text-muted-foreground'
-            }`}>
+            <button 
+              onClick={() => setCurrentStep(step as Step)}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium cursor-pointer hover:opacity-80 transition-opacity ${
+                currentStep === step ? 'bg-primary text-primary-foreground' :
+                ['upload', 'transcription', 'analysis', 'results', 'automation'].indexOf(currentStep) > index ? 'bg-green-500 text-white' :
+                'bg-muted text-muted-foreground'
+              }`}
+            >
               {index + 1}
-            </div>
+            </button>
             {index < 4 && <div className="w-8 h-px bg-border" />}
           </div>
         ))}

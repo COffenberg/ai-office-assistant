@@ -60,9 +60,9 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
           <h1 className="heading-display text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Overview of your call analysis activity</p>
         </div>
-        <Button onClick={() => onNavigate('upload')} className="flex items-center gap-2">
+        <Button onClick={() => onNavigate('departments')} className="flex items-center gap-2">
           <Upload className="w-4 h-4" />
-          Upload Calls
+          Create Analysis
         </Button>
       </div>
 
