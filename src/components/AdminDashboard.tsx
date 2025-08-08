@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, MessageSquare, BarChart3, AlertTriangle, Settings, Users } from "lucide-react";
+import { FileText, MessageSquare, BarChart3, Settings, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocuments } from "@/hooks/useDocuments";
@@ -11,7 +11,7 @@ import AdminDashboardHeader from "./dashboard/AdminDashboardHeader";
 import DocumentsTab from "./dashboard/DocumentsTab";
 import QATab from "./dashboard/QATab";
 import AdminAnalytics from "./AdminAnalytics";
-import KnowledgeGapManager from "./KnowledgeGapManager";
+// Removed KnowledgeGapManager import after merging into Analytics
 import DocumentProcessingTest from "./DocumentProcessingTest";
 import EmployeeDashboard from "./EmployeeDashboard";
 import UserManagement from "./UserManagement";
@@ -71,7 +71,7 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs defaultValue="documents" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="documents" className="flex items-center space-x-2">
               <FileText className="w-4 h-4" />
               <span>Documents</span>
@@ -87,10 +87,6 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
             <TabsTrigger value="analytics" className="flex items-center space-x-2">
               <BarChart3 className="w-4 h-4" />
               <span>Analytics</span>
-            </TabsTrigger>
-            <TabsTrigger value="gaps" className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Knowledge Gaps</span>
             </TabsTrigger>
             <TabsTrigger value="debug" className="flex items-center space-x-2">
               <Settings className="w-4 h-4" />
@@ -132,9 +128,6 @@ const AdminDashboard = ({ onBack }: AdminDashboardProps) => {
             <AdminAnalytics />
           </TabsContent>
 
-          <TabsContent value="gaps" className="space-y-6">
-            <KnowledgeGapManager />
-          </TabsContent>
 
           <TabsContent value="debug" className="space-y-6">
             <DocumentProcessingTest />
