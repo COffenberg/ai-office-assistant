@@ -54,6 +54,7 @@ interface Department {
 
 interface DepartmentSelectionProps {
   onDepartmentSelect: (department: Department) => void;
+  onRunAnalysis?: (department: Department) => void;
 }
 
 const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) => {
@@ -63,6 +64,9 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [newDepartment, setNewDepartment] = useState({ name: '', description: '' });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [lastActivityFilter, setLastActivityFilter] = useState<'all' | '7' | '30' | '90'>('all');
+  const [sortBy, setSortBy] = useState<'activity' | 'name' | 'analyses'>('activity');
 
   const departments: Department[] = [
     {
@@ -137,7 +141,7 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
       <div className="flex justify-between items-center">
         <div>
           <h1 className="heading-display text-foreground">Departments</h1>
-          <p className="text-muted-foreground">Manage your call analysis departments</p>
+          <p className="text-muted-foreground">Manage teams and run analyses.</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
@@ -182,15 +186,45 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
         </Dialog>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search departments..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search + Filters */}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="relative md:col-span-2">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search departments..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <select
+          className="border rounded-md p-2"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+        >
+          <option value="all">Status: All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select
+          className="border rounded-md p-2"
+          value={lastActivityFilter}
+          onChange={(e) => setLastActivityFilter(e.target.value as any)}
+        >
+          <option value="all">Last activity: All</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+        </select>
+        <select
+          className="border rounded-md p-2 md:col-span-2 lg:col-span-1"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+        >
+          <option value="activity">Sort by: Last Activity</option>
+          <option value="name">Name A–Z</option>
+          <option value="analyses">Analyses (desc)</option>
+        </select>
       </div>
 
       {/* Departments Grid */}
@@ -232,20 +266,58 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
                 </DropdownMenu>
               </div>
               
-              <p className="text-sm text-muted-foreground mb-4">
-                {department.description}
-              </p>
-              
-              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                <span>Created {department.createdAt.toLocaleDateString()}</span>
+              {/* Mini-metrics */}
+              <div className="grid grid-cols-3 gap-2 text-xs mb-4">
+                <div className="rounded-md border p-2 text-center">
+                  <div className="font-medium">Analyses (30d)</div>
+                  <div className="text-muted-foreground">{Math.min( department.analysisCount, 30 )}</div>
+                </div>
+                <div className="rounded-md border p-2 text-center">
+                  <div className="font-medium">Files (30d)</div>
+                  <div className="text-muted-foreground">{department.analysisCount * 3}</div>
+                </div>
+                <div className="rounded-md border p-2 text-center">
+                  <div className="font-medium">Active Users</div>
+                  <div className="text-muted-foreground">{Math.max(1, Math.floor(department.analysisCount/5))}</div>
+                </div>
               </div>
-              
-              <Button 
-                className="w-full mt-4" 
-                onClick={() => onDepartmentSelect(department)}
-              >
-                View Department
-              </Button>
+
+              {/* Status + Last activity */}
+              <div className="flex justify-between items-center text-xs mb-2">
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-1">Active</span>
+                <span className="text-muted-foreground">Last activity: {department.createdAt.toLocaleDateString()}</span>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 mt-4">
+                <Button className="flex-1" variant="outline" onClick={() => onDepartmentSelect(department)}>
+                  Open
+                </Button>
+                <Button className="flex-1" onClick={() => onDepartmentSelect(department)}>
+                  Run Analysis
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>
+                      Manage Members
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Edit className="w-4 h-4 mr-2" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive" onClick={() => openDeleteDialog(department)}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardContent>
           </Card>
         ))}

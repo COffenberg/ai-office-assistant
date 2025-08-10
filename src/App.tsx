@@ -51,7 +51,7 @@ const App: React.FC = () => {
                 } 
               />
               <Route 
-                path="/call-analyzer" 
+                path="/call-analyzer/*" 
                 element={
                   <ProtectedRoute>
                     <CallAnalyzer />

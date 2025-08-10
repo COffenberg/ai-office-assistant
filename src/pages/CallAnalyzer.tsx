@@ -1,35 +1,16 @@
 import { useState } from 'react';
+import { NavLink, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BackToMenuLink from '@/components/BackToMenuLink';
 import DepartmentSelection from '@/components/call-analyzer/DepartmentSelection';
 import DepartmentView from '@/components/call-analyzer/DepartmentView';
 import AnalysisCreation from '@/components/call-analyzer/AnalysisCreation';
-import Dashboard from '@/components/call-analyzer/Dashboard';
-import QuestionBank from '@/components/call-analyzer/QuestionBank';
 import Automations from '@/components/call-analyzer/Automations';
 import { Button } from '@/components/ui/button';
 import { 
-  Home, 
-  Upload, 
   Clock, 
-  BarChart3, 
   Settings, 
-  HelpCircle, 
-  Building,
-  Bell
+  Building
 } from 'lucide-react';
-
-type View = 
-  | 'dashboard'
-  | 'departments' 
-  | 'department-view'
-  | 'upload'
-  | 'analysis-queue'
-  | 'results'
-  | 'automations'
-  | 'question-bank'
-  | 'notifications'
-  | 'settings'
-  | 'analysis-creation';
 
 interface Department {
   id: string;
@@ -40,66 +21,32 @@ interface Department {
 }
 
 const CallAnalyzer = () => {
-  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
 
   const navigationItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'departments', label: 'Departments', icon: Building },
-    { id: 'analysis-queue', label: 'Analysis Queue', icon: Clock },
-    { id: 'results', label: 'Results', icon: BarChart3 },
-    { id: 'automations', label: 'Automations', icon: Settings },
-    { id: 'question-bank', label: 'Question Bank', icon: HelpCircle },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { to: '/call-analyzer/departments', label: 'Departments', icon: Building },
+    { to: '/call-analyzer/analysis-queue', label: 'Analysis Queue', icon: Clock },
+    { to: '/call-analyzer/automations', label: 'Automations', icon: Settings },
   ];
 
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
-    setCurrentView('department-view');
+    navigate(`/call-analyzer/department/${department.id}`, { state: { department } });
   };
 
   const handleCreateAnalysis = () => {
-    setCurrentView('analysis-creation');
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return <Dashboard onNavigate={setCurrentView} />;
-      case 'departments':
-        return <DepartmentSelection onDepartmentSelect={handleDepartmentSelect} />;
-      case 'department-view':
-        return (
-          <DepartmentView 
-            department={selectedDepartment!}
-            onBack={() => setCurrentView('departments')}
-            onCreateAnalysis={handleCreateAnalysis}
-          />
-        );
-      case 'analysis-creation':
-        return (
-          <AnalysisCreation 
-            department={selectedDepartment!}
-            onBack={() => setCurrentView('department-view')}
-          />
-        );
-      case 'question-bank':
-        return <QuestionBank onBack={() => setCurrentView('dashboard')} />;
-      case 'automations':
-        return <Automations onBack={() => setCurrentView('dashboard')} />;
-      default:
-        return (
-          <div className="text-center mt-20">
-            <h2 className="heading-display text-foreground mb-4">
-              {navigationItems.find(item => item.id === currentView)?.label}
-            </h2>
-            <p className="text-body text-muted-foreground">
-              Work in progress…
-            </p>
-          </div>
-        );
+    if (selectedDepartment) {
+      navigate('/call-analyzer/analysis/create');
     }
   };
+
+  // Restore department from navigation state if available
+  const stateDept = (location.state as any)?.department as Department | undefined;
+  if (stateDept && (!selectedDepartment || selectedDepartment.id !== stateDept.id)) {
+    setSelectedDepartment(stateDept);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -117,15 +64,17 @@ const CallAnalyzer = () => {
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Button
-                    key={item.id}
-                    variant={currentView === item.id ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => setCurrentView(item.id as View)}
-                  >
-                    <Icon className="w-4 h-4 mr-3" />
-                    {item.label}
-                  </Button>
+                  <NavLink key={item.to} to={item.to} end>
+                    {({ isActive }) => (
+                      <Button
+                        variant={isActive ? 'secondary' : 'ghost'}
+                        className="w-full justify-start"
+                      >
+                        <Icon className="w-4 h-4 mr-3" />
+                        {item.label}
+                      </Button>
+                    )}
+                  </NavLink>
                 );
               })}
             </nav>
@@ -134,7 +83,75 @@ const CallAnalyzer = () => {
 
         {/* Main Content */}
         <div className="flex-1 p-6">
-          {renderContent()}
+          <div className="flex justify-end mb-4">
+            <Button onClick={handleCreateAnalysis} disabled={!selectedDepartment}>
+              + Create Analysis
+            </Button>
+          </div>
+
+          <Routes>
+            {/* Default: /call-analyzer -> /call-analyzer/departments */}
+            <Route index element={<Navigate to="departments" replace />} />
+
+            {/* Core screens */}
+            <Route 
+              path="departments" 
+              element={<DepartmentSelection onDepartmentSelect={handleDepartmentSelect} />} 
+            />
+            <Route 
+              path="department/:id" 
+              element={
+                selectedDepartment ? (
+                  <DepartmentView 
+                    department={selectedDepartment}
+                    onBack={() => navigate('../departments')}
+                    onCreateAnalysis={handleCreateAnalysis}
+                  />
+                ) : (
+                  <Navigate to="../departments" replace />
+                )
+              } 
+            />
+            <Route 
+              path="analysis/create" 
+              element={
+                selectedDepartment ? (
+                  <AnalysisCreation 
+                    department={selectedDepartment}
+                    onBack={() => navigate(`../department/${selectedDepartment.id}`)}
+                  />
+                ) : (
+                  <Navigate to="../departments" replace />
+                )
+              } 
+            />
+            <Route 
+              path="analysis-queue" 
+              element={
+                <div className="text-center mt-20">
+                  <h2 className="heading-display text-foreground mb-4">
+                    Analysis Queue
+                  </h2>
+                  <p className="text-body text-muted-foreground">
+                    Work in progress…
+                  </p>
+                </div>
+              } 
+            />
+            <Route 
+              path="automations" 
+              element={<Automations onBack={() => navigate('../departments')} />} 
+            />
+
+            {/* Legacy redirects: removed modules */}
+            <Route path="dashboard" element={<Navigate to="../departments" replace />} />
+            <Route path="results" element={<Navigate to="../departments" replace />} />
+            <Route path="question-bank" element={<Navigate to="../departments" replace />} />
+            <Route path="notifications" element={<Navigate to="../departments" replace />} />
+
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to="departments" replace />} />
+          </Routes>
         </div>
       </div>
     </div>
