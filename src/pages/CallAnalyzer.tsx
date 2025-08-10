@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { NavLink, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BackToMenuLink from '@/components/BackToMenuLink';
 import DepartmentSelection from '@/components/call-analyzer/DepartmentSelection';
-import DepartmentView from '@/components/call-analyzer/DepartmentView';
+import DepartmentHome from '@/components/call-analyzer/DepartmentHome';
+import DepartmentAnalysesList from '@/components/call-analyzer/DepartmentAnalysesList';
 import AnalysisCreation from '@/components/call-analyzer/AnalysisCreation';
 import Automations from '@/components/call-analyzer/Automations';
 import { Button } from '@/components/ui/button';
@@ -31,9 +32,11 @@ const CallAnalyzer = () => {
     { to: '/call-analyzer/automations', label: 'Automations', icon: Settings },
   ];
 
+  const isDepartmentsSelector = location.pathname === '/call-analyzer/departments';
+
   const handleDepartmentSelect = (department: Department) => {
     setSelectedDepartment(department);
-    navigate(`/call-analyzer/department/${department.id}`, { state: { department } });
+    navigate(`/call-analyzer/departments/${department.id}`, { state: { department } });
   };
 
   const handleCreateAnalysis = () => {
@@ -83,11 +86,13 @@ const CallAnalyzer = () => {
 
         {/* Main Content */}
         <div className="flex-1 p-6">
-          <div className="flex justify-end mb-4">
-            <Button onClick={handleCreateAnalysis} disabled={!selectedDepartment}>
-              + Create Analysis
-            </Button>
-          </div>
+          {!isDepartmentsSelector && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={handleCreateAnalysis} disabled={!selectedDepartment}>
+                + Create Analysis
+              </Button>
+            </div>
+          )}
 
           <Routes>
             {/* Default: /call-analyzer -> /call-analyzer/departments */}
@@ -99,18 +104,20 @@ const CallAnalyzer = () => {
               element={<DepartmentSelection onDepartmentSelect={handleDepartmentSelect} />} 
             />
             <Route 
-              path="department/:id" 
+              path="departments/:id" 
               element={
                 selectedDepartment ? (
-                  <DepartmentView 
+                  <DepartmentHome 
                     department={selectedDepartment}
-                    onBack={() => navigate('../departments')}
-                    onCreateAnalysis={handleCreateAnalysis}
                   />
                 ) : (
                   <Navigate to="../departments" replace />
                 )
               } 
+            />
+            <Route
+              path="departments/:id/analyses"
+              element={<DepartmentAnalysesList />}
             />
             <Route 
               path="analysis/create" 
@@ -118,7 +125,7 @@ const CallAnalyzer = () => {
                 selectedDepartment ? (
                   <AnalysisCreation 
                     department={selectedDepartment}
-                    onBack={() => navigate(`../department/${selectedDepartment.id}`)}
+                    onBack={() => navigate(`../departments/${selectedDepartment.id}`)}
                   />
                 ) : (
                   <Navigate to="../departments" replace />
