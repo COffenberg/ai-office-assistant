@@ -2,47 +2,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Building,
-  MoreVertical
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Plus, Search } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/components/ui/pagination';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import EditDepartmentDialog from '@/components/call-analyzer/EditDepartmentDialog';
 
 interface Department {
   id: string;
@@ -61,14 +27,11 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [newDepartment, setNewDepartment] = useState({ name: '', description: '' });
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [lastActivityFilter, setLastActivityFilter] = useState<'all' | '7' | '30' | '90'>('all');
-  const [sortBy, setSortBy] = useState<'activity' | 'name' | 'analyses'>('activity');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const departments: Department[] = [
+  const initialDepartments: Department[] = [
     {
       id: '1',
       name: 'Customer Care',
@@ -106,8 +69,10 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
     },
   ];
 
+  const [deptList, setDeptList] = useState<Department[]>(initialDepartments);
+
   const itemsPerPage = 25;
-  const filteredDepartments = departments.filter(dept =>
+  const filteredDepartments = deptList.filter(dept =>
     dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     dept.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -123,17 +88,17 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
     setNewDepartment({ name: '', description: '' });
   };
 
-  const handleDeleteDepartment = () => {
-    // TODO: Implement department deletion
-    console.log('Deleting department:', selectedDepartment);
-    setIsDeleteDialogOpen(false);
-    setSelectedDepartment(null);
+  const handleEditDepartmentSave = (updated: any) => {
+    setDeptList((prev) => prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)));
+    setSelectedDepartment(updated as Department);
+    setIsEditDialogOpen(false);
   };
 
-  const openDeleteDialog = (department: Department) => {
+  const openEditDialog = (department: Department) => {
     setSelectedDepartment(department);
-    setIsDeleteDialogOpen(true);
+    setIsEditDialogOpen(true);
   };
+
 
   return (
     <div className="space-y-6">
@@ -186,142 +151,67 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
         </Dialog>
       </div>
 
-      {/* Search + Filters */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <div className="relative md:col-span-2">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search departments..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search departments..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+          aria-label="Search departments"
+        />
+      </div>
+
+      <TooltipProvider>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {paginatedDepartments.map((department) => {
+            const canEdit = true; // TODO: integrate RBAC
+            const Title = (
+              <h3 className="font-semibold text-lg truncate" title={department.name}>
+                {department.name}
+              </h3>
+            );
+            return (
+              <Card key={department.id} className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="mb-3">
+                    <Tooltip>
+                      <TooltipTrigger asChild>{Title}</TooltipTrigger>
+                      <TooltipContent>{department.name}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button className="w-full sm:w-auto" onClick={() => onDepartmentSelect(department)}>
+                      Open
+                    </Button>
+                    {canEdit ? (
+                      <Button
+                        variant="secondary"
+                        className="w-full sm:w-auto"
+                        onClick={() => openEditDialog(department)}
+                      >
+                        Edit
+                      </Button>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="w-full sm:w-auto">
+                            <Button variant="secondary" className="w-full sm:w-auto" disabled aria-disabled>
+                              Edit
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>You don’t have permission to edit this department.</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-        <select
-          className="border rounded-md p-2"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-        >
-          <option value="all">Status: All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <select
-          className="border rounded-md p-2"
-          value={lastActivityFilter}
-          onChange={(e) => setLastActivityFilter(e.target.value as any)}
-        >
-          <option value="all">Last activity: All</option>
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="90">90 days</option>
-        </select>
-        <select
-          className="border rounded-md p-2 md:col-span-2 lg:col-span-1"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-        >
-          <option value="activity">Sort by: Last Activity</option>
-          <option value="name">Name A–Z</option>
-          <option value="analyses">Analyses (desc)</option>
-        </select>
-      </div>
-
-      {/* Departments Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedDepartments.map((department) => (
-          <Card key={department.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Building className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{department.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {department.analysisCount} analyses
-                    </p>
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="text-destructive"
-                      onClick={() => openDeleteDialog(department)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              
-              {/* Mini-metrics */}
-              <div className="grid grid-cols-3 gap-2 text-xs mb-4">
-                <div className="rounded-md border p-2 text-center">
-                  <div className="font-medium">Analyses (30d)</div>
-                  <div className="text-muted-foreground">{Math.min( department.analysisCount, 30 )}</div>
-                </div>
-                <div className="rounded-md border p-2 text-center">
-                  <div className="font-medium">Files (30d)</div>
-                  <div className="text-muted-foreground">{department.analysisCount * 3}</div>
-                </div>
-                <div className="rounded-md border p-2 text-center">
-                  <div className="font-medium">Active Users</div>
-                  <div className="text-muted-foreground">{Math.max(1, Math.floor(department.analysisCount/5))}</div>
-                </div>
-              </div>
-
-              {/* Status + Last activity */}
-              <div className="flex justify-between items-center text-xs mb-2">
-                <span className="inline-flex items-center rounded-full bg-muted px-2 py-1">Active</span>
-                <span className="text-muted-foreground">Last activity: {department.createdAt.toLocaleDateString()}</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 mt-4">
-                <Button className="flex-1" variant="outline" onClick={() => onDepartmentSelect(department)}>
-                  Open
-                </Button>
-                <Button className="flex-1" onClick={() => onDepartmentSelect(department)}>
-                  Run Analysis
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      Manage Members
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Edit className="w-4 h-4 mr-2" /> Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={() => openDeleteDialog(department)}>
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      </TooltipProvider>
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -353,24 +243,12 @@ const DepartmentSelection = ({ onDepartmentSelect }: DepartmentSelectionProps) =
         </Pagination>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Department</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedDepartment?.name}"? 
-              This action cannot be undone, but past analyses will be preserved in read-only mode.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteDepartment} className="bg-destructive hover:bg-destructive/90">
-              Delete Department
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EditDepartmentDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        department={selectedDepartment}
+        onSave={handleEditDepartmentSave}
+      />
     </div>
   );
 };
